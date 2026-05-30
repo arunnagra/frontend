@@ -1,0 +1,192 @@
+.leaderboard-page {
+  min-height: 100vh;
+  padding: 30px 20px 40px;
+  background: radial-gradient(circle at top, rgba(99, 102, 241, 0.18), transparent 35%), #071026;
+}
+
+.leaderboard-header{
+  text-align:center;
+  margin-bottom:40px;
+}
+
+.leaderboard-header h1{
+  font-size:3rem;
+  color:#fff;
+  margin-bottom:10px;
+
+  text-shadow:
+  0 0 20px rgba(
+    99,
+    102,
+    241,
+    .7
+  );
+}
+
+.leaderboard-header p{
+  color:#94a3b8;
+  font-size:1rem;
+}
+
+.leaderboard-card {
+  width: min(100%, 1100px);
+  margin: 0 auto;
+  background: rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 24px;
+  overflow: hidden;
+  overflow-x: auto;
+  box-shadow: 0 0 40px rgba(99, 102, 241, 0.15);
+}
+
+.leaderboard-table-header{
+  display:grid;
+
+  grid-template-columns:
+  100px
+  2fr
+  1fr
+  1fr
+  1fr
+  1fr;
+
+  padding:20px;
+
+  background:
+  rgba(255,255,255,.06);
+
+  font-weight:700;
+
+  color:white;
+}
+
+.leaderboard-row{
+  display:grid;
+
+  grid-template-columns:
+  100px
+  2fr
+  1fr
+  1fr
+  1fr
+  1fr;
+
+  align-items:center;
+
+  padding:18px 20px;
+
+  border-top:
+  1px solid rgba(
+    255,
+    255,
+    255,
+    .05
+  );
+
+  transition:.3s;
+}
+
+.leaderboard-row:hover{
+  background:
+  rgba(255,255,255,.05);
+
+  transform:
+  scale(1.01);
+}
+
+.top-player{
+  background:
+  linear-gradient(
+    90deg,
+    rgba(255,215,0,.08),
+    transparent
+  );
+}
+
+.rank{
+  font-size:1.2rem;
+  font-weight:700;
+  color:white;
+}
+
+.player-info{
+  display:flex;
+  align-items:center;
+  gap:12px;
+}
+
+.player-avatar{
+  width:45px;
+  height:45px;
+
+  border-radius:50%;
+
+  display:flex;
+  align-items:center;
+  justify-content:center;
+
+  color:white;
+  font-weight:700;
+
+  background:
+  linear-gradient(
+    135deg,
+    #7c3aed,
+    #06b6d4
+  );
+
+  box-shadow:
+  0 0 15px rgba(
+    124,
+    58,
+    237,
+    .5
+  );
+}
+
+.player-info span{
+  color:white;
+  font-weight:600;
+}
+
+.leaderboard-row div{
+  color:#e5e7eb;
+}
+
+.empty-state{
+  padding:40px;
+  text-align:center;
+  color:#94a3b8;
+}
+
+@media(max-width:768px){
+
+.leaderboard-page {
+  padding: 24px 14px 32px;
+}
+
+.leaderboard-header h1 {
+  font-size: clamp(2rem, 8vw, 2.5rem);
+}
+
+.leaderboard-card {
+  border-radius: 18px;
+}
+
+.leaderboard-table-header{
+  display:none;
+}
+
+.leaderboard-row{
+  grid-template-columns:1fr;
+  gap:10px;
+  text-align:center;
+  padding:16px 14px;
+}
+
+.player-info{
+  justify-content:center;
+}
+
+}

@@ -1,0 +1,207 @@
+.profile-page {
+  min-height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 40px 20px;
+  background: radial-gradient(circle at top, rgba(99, 102, 241, 0.18), transparent 40%), #071026;
+}
+
+.profile-card {
+  width: min(100%, 900px);
+  max-width: 900px;
+  background: rgba(255,255,255,0.06);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 24px;
+  padding: 36px;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.28);
+  text-align: center;
+}
+
+.profile-card-intro {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  flex-wrap: wrap;
+  justify-content: flex-start;
+}
+
+.profile-info {
+  flex: 1;
+}
+
+.profile-card h1 {
+  margin-top: 0;
+}
+
+.profile-info p {
+  margin-top: 12px;
+}
+
+.profile-avatar{
+  width:120px;
+  height:120px;
+
+  margin:auto;
+
+  border-radius:50%;
+
+  display:flex;
+  justify-content:center;
+  align-items:center;
+
+  font-size:48px;
+  font-weight:700;
+
+  color:white;
+
+  background:
+    linear-gradient(
+      135deg,
+      #7c3aed,
+      #06b6d4
+    );
+
+  box-shadow:
+    0 0 25px rgba(124,58,237,.6);
+}
+
+.profile-card h1{
+  margin-top:0;
+  color:white;
+  font-size:2.4rem;
+}
+
+.profile-info .player-rank,
+.profile-info p {
+  text-align: center;
+}
+
+.player-rank{
+  display:inline-block;
+  margin-top:8px;
+
+  padding:8px 18px;
+
+  border-radius:999px;
+
+  background:
+    rgba(99,102,241,.15);
+
+  color:#8b5cf6;
+  font-weight:600;
+}
+
+.profile-card p{
+  margin-top:15px;
+  color:#9ca3af;
+}
+
+.stats-grid{
+  margin-top:35px;
+
+  display:grid;
+
+  grid-template-columns:
+    repeat(3,1fr);
+
+  gap:20px;
+}
+
+.stat-box{
+  background:
+    rgba(255,255,255,.05);
+
+  padding:20px;
+
+  border-radius:18px;
+
+  border:1px solid
+    rgba(255,255,255,.08);
+
+  transition:.3s;
+}
+
+.stat-box:hover{
+  transform:translateY(-5px);
+}
+
+.stat-box h2{
+  color:white;
+  margin-bottom:5px;
+}
+
+.stat-box span{
+  color:#9ca3af;
+}
+
+.winrate-section{
+  margin-top:35px;
+}
+
+.winrate-header{
+  display:flex;
+  justify-content:space-between;
+
+  margin-bottom:12px;
+
+  color:white;
+}
+
+.progress-bar{
+  height:14px;
+
+  background:
+    rgba(255,255,255,.08);
+
+  border-radius:20px;
+
+  overflow:hidden;
+}
+
+.progress-fill{
+  height:100%;
+
+  background:
+    linear-gradient(
+      90deg,
+      #7c3aed,
+      #06b6d4
+    );
+
+  border-radius:20px;
+
+  transition:.5s;
+}
+
+@media(max-width:768px){
+
+  .profile-card {
+    padding: 28px;
+  }
+
+  .profile-card-intro {
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+  }
+
+  .profile-info {
+    width: 100%;
+  }
+
+  .profile-info .player-rank,
+  .profile-info p {
+    text-align: center;
+  }
+
+  .stats-grid{
+    grid-template-columns:1fr;
+  }
+
+  .winrate-header {
+    gap: 12px;
+  }
+
+}

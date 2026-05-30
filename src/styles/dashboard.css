@@ -1,0 +1,145 @@
+.navbar {
+  background: rgba(15, 23, 42, 0.95);
+  padding: 18px 24px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  box-shadow: 0 20px 45px rgba(0, 0, 0, 0.32);
+}
+
+.navbar div{
+  display:flex;
+  gap:20px;
+  align-items:center;
+}
+
+.navbar button {
+  background: var(--danger);
+  color: white;
+  border: none;
+  padding: 10px 16px;
+  border-radius: 12px;
+}
+.dashboard{
+  height:90vh;
+
+  display:flex;
+  flex-direction:column;
+  justify-content:center;
+  align-items:center;
+}
+
+.dashboard h1{
+  font-size:50px;
+  margin-bottom:40px;
+}
+
+.dashboard-buttons{
+  display:flex;
+  gap:20px;
+}
+
+.dashboard-buttons button{
+  padding:15px 30px;
+  border:none;
+  border-radius:10px;
+
+  background:#3b82f6;
+  color:white;
+
+  font-size:18px;
+}.dashboard{
+  height:90vh;
+
+  display:flex;
+  flex-direction:column;
+  justify-content:center;
+  align-items:center;
+}
+
+.dashboard h1{
+  font-size:50px;
+  margin-bottom:40px;
+}
+
+.dashboard-buttons{
+  display:flex;
+  gap:20px;
+}
+
+.dashboard-buttons button{
+  padding:15px 30px;
+  border:none;
+  border-radius:10px;
+
+  background:#3b82f6;
+  color:white;
+
+  font-size:18px;
+}
+.dashboard {
+  min-height: calc(100vh - 80px);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 30px;
+  padding: 40px 24px;
+  text-align: center;
+  background: radial-gradient(circle at top, rgba(99, 102, 241, 0.18), transparent 35%), #071026;
+}
+
+.dashboard-header h1 {
+  font-size: clamp(2.6rem, 3vw, 3.4rem);
+  margin-bottom: 10px;
+}
+
+.username {
+  color: var(--primary);
+  text-shadow: 0 0 18px rgba(96, 165, 250, 0.6);
+}
+
+.dashboard-header p {
+  color: var(--muted);
+  font-size: 1.05rem;
+}
+
+.dashboard-buttons {
+  display: flex;
+  gap: 20px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.dashboard-btn {
+  min-width: 220px;
+  padding: 16px 26px;
+  border: none;
+  border-radius: 16px;
+  cursor: pointer;
+  font-size: 16px;
+  font-weight: 700;
+  color: white;
+  background: linear-gradient(135deg, var(--accent), var(--primary));
+  transition: transform 0.25s ease, box-shadow 0.25s ease;
+}
+
+.dashboard-btn:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 0 24px rgba(96, 165, 250, 0.45);
+}
+
+@media (max-width: 760px) {
+  .dashboard {
+    padding: 32px 18px;
+  }
+
+  .dashboard-buttons {
+    flex-direction: column;
+    width: 100%;
+  }
+
+  .dashboard-btn {
+    width: 100%;
+  }
+}
