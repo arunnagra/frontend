@@ -54,7 +54,7 @@ function Leaderboard() {
       socket.off("match_recorded", onMatchRecorded);
       socket.disconnect();
     };
-  }, []);
+  }, [fetchLeaderboard]);
 
   const getRankBadge = (index) => {
     if (index === 0) return "🥇";

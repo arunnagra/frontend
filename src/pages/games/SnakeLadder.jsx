@@ -79,7 +79,7 @@ export default function SnakeLadder() {
     return () => {
       socket.off("snake_roll", handleOpponentRoll);
     };
-  }, []);
+  }, [roomId,username]);
 
   const handleOpponentRoll = (data) => {
     // payload: { roomId, dice, position, username }

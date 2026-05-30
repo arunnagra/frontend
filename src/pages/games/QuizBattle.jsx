@@ -166,7 +166,7 @@ export default function QuizBattle() {
         handleOpponentAnswer
       );
     };
-  }, []);
+  }, [handleOpponentAnswer,roomId,username,recordQuizMatch]);
 
   const handleOpponentAnswer = (data) => {
     console.log(
