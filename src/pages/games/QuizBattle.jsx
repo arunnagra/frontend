@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef,useCallback, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import axios from "axios";
 import socket from "../../socket/socket";
@@ -84,7 +84,7 @@ export default function QuizBattle() {
   const [players, setPlayers] = useState(initialPlayers);
   const recordedRef = useRef(false);
 
-  const recordQuizMatch = async (finalScore, otherScore) => {
+  const recordQuizMatch = useCallback(async (finalScore, otherScore) => {
     try {
       if (players?.length >= 2) {
         const player1 = players[0];
@@ -133,8 +133,17 @@ export default function QuizBattle() {
       }
     } catch (error) {
       console.log("Error recording quiz match:", error);
+    }},[]);
+  const handleOpponentAnswer = useCallback((data) => {
+    console.log(
+      "Opponent Answer:",
+      data
+    );
+    
+    if (data.finalScore !== undefined && data.player !== username) {
+      setOpponentScore(data.finalScore);
     }
-  };
+  },[roomId,username]);
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
@@ -168,16 +177,6 @@ export default function QuizBattle() {
     };
   }, [handleOpponentAnswer,roomId,username,recordQuizMatch]);
 
-  const handleOpponentAnswer = (data) => {
-    console.log(
-      "Opponent Answer:",
-      data
-    );
-    
-    if (data.finalScore !== undefined && data.player !== username) {
-      setOpponentScore(data.finalScore);
-    }
-  };
 
   const submitAnswer = (option) => {
     if (selectedAnswer) return;
@@ -233,7 +232,7 @@ export default function QuizBattle() {
       recordedRef.current = true;
       recordQuizMatch(score, opponentScore);
     }
-  }, [showResult, opponentScore, score, isHost, players, username]);
+  }, [showResult, opponentScore, score, isHost, players, username],recordQuizMatch);
 
   const restartGame = () => {
     setCurrentQuestion(0);
