@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from "react";
+import { useCallback, useEffect, useState, useRef } from "react";
 import axios from "axios";
 import socket from "../socket/socket";
 import { apiUrl } from "../config/api";
@@ -12,6 +12,30 @@ function Leaderboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const prevDataRef = useRef("");
+
+  const fetchLeaderboard = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError("");
+
+      const res = await axios.get(apiUrl("/api/leaderboard"));
+
+      const data = res.data || [];
+
+      const str = JSON.stringify(data);
+      if (prevDataRef.current !== str) {
+        prevDataRef.current = str;
+        setPlayers(data);
+      }
+    } catch (err) {
+      console.error(err);
+      setError(
+        "Failed to load leaderboard. Please try again."
+      );
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
     socket.connect();
@@ -31,33 +55,6 @@ function Leaderboard() {
       socket.disconnect();
     };
   }, []);
-
-  const fetchLeaderboard = async () => {
-    try {
-      
-      
-      if ((players || []).length === 0) setLoading(true);
-      setError("");
-
-      const res = await axios.get(apiUrl("/api/leaderboard"));
-
-      const data = res.data || [];
-
-      
-      const str = JSON.stringify(data);
-      if (prevDataRef.current !== str) {
-        prevDataRef.current = str;
-        setPlayers(data);
-      }
-    } catch (err) {
-      console.error(err);
-      setError(
-        "Failed to load leaderboard. Please try again."
-      );
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const getRankBadge = (index) => {
     if (index === 0) return "🥇";

@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import socket from "../../socket/socket";
 
@@ -23,7 +23,17 @@ const TicTacToe = () => {
       ? "X"
       : "O";
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const handleRoomData = useCallback((data) => {
+    setBoard(data.board || Array(9).fill(""));
+    setTurn(data.turn || "X");
+
+    if (data.winner && data.winner !== "") {
+      recordedRef.current = true;
+    }
+
+    setWinner(data.winner || "");
+  }, []);
+
   useEffect(() => {
     if (!socket.connected) {
       socket.connect();
@@ -42,23 +52,12 @@ const TicTacToe = () => {
       }
     );
 
-    const handleRoomData = (data) => {
-      setBoard(data.board || Array(9).fill(""));
-      setTurn(data.turn || "X");
-      
-      if (data.winner && data.winner !== "") {
-        recordedRef.current = true;
-      }
-      
-      setWinner(data.winner || "");
-    };
-
     socket.on("roomData", handleRoomData);
 
     return () => {
       socket.off("roomData", handleRoomData);
     };
-  }, []);
+  }, [roomId, username, handleRoomData]);
 
   const makeMove = (index) => {
     if (winner) return;

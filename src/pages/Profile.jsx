@@ -1,4 +1,4 @@
-import { useContext, useEffect, useState } from "react";
+import { useCallback, useContext, useEffect } from "react";
 import axios from "axios";
 import Navbar from "../components/Navbar";
 import { AuthContext } from "../context/AuthContext";
@@ -8,19 +8,9 @@ import "../styles/profile.css";
 
 function Profile() {
   const { user, login } = useContext(AuthContext);
-  const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    
-    const token = localStorage.getItem("token");
-    if (token) {
-      refreshUserStats();
-    }
-  }, []);
-
-  const refreshUserStats = async () => {
+  const refreshUserStats = useCallback(async () => {
     try {
-      setLoading(true);
       const res = await axios.get(
         apiUrl("/api/profile"),
         {
@@ -39,14 +29,19 @@ function Profile() {
         };
 
         
-        login(localStorage.getItem("token"), profile);
+                login(localStorage.getItem("token"), profile);
       }
     } catch (error) {
       console.log("Error refreshing user stats:", error);
-    } finally {
-      setLoading(false);
     }
-  };
+          }, [login]);
+
+          useEffect(() => {
+            const token = localStorage.getItem("token");
+            if (token) {
+              refreshUserStats();
+            }
+          }, [refreshUserStats]);
 
   
   const wins = user?.wins || 0;
