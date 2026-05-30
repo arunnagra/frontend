@@ -133,7 +133,7 @@ export default function QuizBattle() {
       }
     } catch (error) {
       console.log("Error recording quiz match:", error);
-    }},[]);
+    }},[roomId,players]);
   const handleOpponentAnswer = useCallback((data) => {
     console.log(
       "Opponent Answer:",
@@ -143,7 +143,7 @@ export default function QuizBattle() {
     if (data.finalScore !== undefined && data.player !== username) {
       setOpponentScore(data.finalScore);
     }
-  },[roomId,username]);
+  },[username]);
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
@@ -232,7 +232,7 @@ export default function QuizBattle() {
       recordedRef.current = true;
       recordQuizMatch(score, opponentScore);
     }
-  }, [showResult, opponentScore, score, isHost, players, username],recordQuizMatch);
+  }, [showResult, opponentScore, score, isHost, players, username,recordQuizMatch,]);
 
   const restartGame = () => {
     setCurrentQuestion(0);
