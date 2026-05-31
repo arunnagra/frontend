@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import axios from "axios";
 import socket from "../../socket/socket";
@@ -34,7 +34,7 @@ export default function MemoryMatch() {
   const [players, setPlayers] = useState(initialPlayers);
   const recordedRef = useRef(false);
 
-  const recordMemoryMatchResult = async (finalMoves) => {
+  const recordMemoryMatchResult = useCallback(async () => {
     try {
       if (!isHost && username !== players[0]?.username) {
         return;
@@ -63,56 +63,9 @@ export default function MemoryMatch() {
     } catch (error) {
       console.log("Error recording memory match:", error);
     }
-  };
+  }, [isHost, username, players, roomId, completedAt]);
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => {
-    if (!socket.connected) {
-      socket.connect();
-    }
-
-    socket.emit(
-      "join_room",
-      {
-        roomId,
-        username,
-      },
-      (res) => {
-        if (res?.players?.length) {
-          setPlayers(res.players);
-        }
-      }
-    );
-
-    initializeGame();
-
-    return () => {
-    };
-  }, []);
-
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => {
-    
-    const gameCompleted =
-      matched.length === cards.length &&
-      cards.length > 0;
-
-    if (gameCompleted && !completedAt && !recordedRef.current) {
-      recordedRef.current = true;
-      recordMemoryMatchResult(moves);
-    }
-  }, [matched, cards, moves, completedAt]);
-
-  // listen for remote flips once
-  useEffect(() => {
-    socket.on("memory_flip", handleRemoteFlip);
-
-    return () => {
-      socket.off("memory_flip", handleRemoteFlip);
-    };
-  }, []);
-
-  const initializeGame = () => {
+  const initializeGame = useCallback(() => {
     const gameCards = [...cardIcons, ...cardIcons]
       .sort(() => Math.random() - 0.5)
       .map((icon, index) => ({
@@ -121,13 +74,9 @@ export default function MemoryMatch() {
       }));
 
     setCards(gameCards);
-  };
+  }, []);
 
-  const handleRemoteFlip = (data) => {
-    flipCard(data.index, false);
-  };
-
-  const flipCard = (index, emit = true) => {
+  const flipCard = useCallback((index, emit = true) => {
     if (
       flipped.includes(index) ||
       matched.includes(index) ||
@@ -151,14 +100,10 @@ export default function MemoryMatch() {
     if (newFlipped.length === 2) {
       setMoves((prev) => prev + 1);
 
-      const firstCard =
-        cards[newFlipped[0]];
-      const secondCard =
-        cards[newFlipped[1]];
+      const firstCard = cards[newFlipped[0]];
+      const secondCard = cards[newFlipped[1]];
 
-      if (
-        firstCard.icon === secondCard.icon
-      ) {
+      if (firstCard.icon === secondCard.icon) {
         setMatched((prev) => [
           ...prev,
           newFlipped[0],
@@ -174,7 +119,55 @@ export default function MemoryMatch() {
         }, 1000);
       }
     }
-  };
+  }, [cards, flipped, matched, roomId]);
+
+  const handleRemoteFlip = useCallback((data) => {
+    flipCard(data.index, false);
+  }, [flipCard]);
+
+  useEffect(() => {
+    if (!socket.connected) {
+      socket.connect();
+    }
+
+    socket.emit(
+      "join_room",
+      {
+        roomId,
+        username,
+      },
+      (res) => {
+        if (res?.players?.length) {
+          setPlayers(res.players);
+        }
+      }
+    );
+
+    initializeGame();
+
+    return () => {
+    };
+  }, [roomId, username, initializeGame]);
+
+  useEffect(() => {
+    const gameCompleted =
+      matched.length === cards.length &&
+      cards.length > 0;
+
+    if (gameCompleted && !completedAt && !recordedRef.current) {
+      recordedRef.current = true;
+      recordMemoryMatchResult(moves);
+    }
+  }, [matched, cards, moves, completedAt, recordMemoryMatchResult]);
+
+  // listen for remote flips once
+  useEffect(() => {
+    socket.on("memory_flip", handleRemoteFlip);
+
+    return () => {
+      socket.off("memory_flip", handleRemoteFlip);
+    };
+  }, [handleRemoteFlip]);
 
   const gameCompleted =
     matched.length === cards.length &&
