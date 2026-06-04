@@ -1,16 +1,24 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
 import socket from "../../socket/socket";
 
 const TicTacToe = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const { roomId: routeRoomId = "" } = useParams();
 
   const {
     roomId = "",
     username = "",
     players: initialPlayers = [],
   } = location.state || {};
+
+  const effectiveRoomId = roomId || routeRoomId;
+  const effectiveUsername =
+    username ||
+    (typeof window !== "undefined"
+      ? localStorage.getItem("gs_username") || ""
+      : "");
 
   const [board, setBoard] = useState(Array(9).fill(""));
   const [turn, setTurn] = useState("X");
@@ -20,7 +28,7 @@ const TicTacToe = () => {
   const recordedRef = useRef(false);
 
   const currentPlayerIndex = players.findIndex(
-    (player) => player.username === username
+    (player) => player.username === effectiveUsername
   );
 
   const playerSymbol =
@@ -44,8 +52,8 @@ const TicTacToe = () => {
     setTurn(data.turn || "X");
 
     if (data.players) {
-    setPlayers(data.players);
-  }
+      setPlayers(data.players);
+    }
 
     if (data.winner && data.winner !== "") {
       recordedRef.current = true;
@@ -55,6 +63,10 @@ const TicTacToe = () => {
   }, []);
 
   useEffect(() => {
+    if (!effectiveRoomId || !effectiveUsername) {
+      return;
+    }
+
     if (!socket.connected) {
       socket.connect();
     }
@@ -62,8 +74,8 @@ const TicTacToe = () => {
     socket.emit(
       "join_room",
       {
-        roomId,
-        username,
+        roomId: effectiveRoomId,
+        username: effectiveUsername,
       },
       (res) => {
         if (res?.players?.length) {
@@ -79,7 +91,7 @@ const TicTacToe = () => {
       socket.off("roomData", handleRoomData);
       socket.off("room_update", handleRoomData);
     };
-  }, [roomId, username, handleRoomData]);
+  }, [effectiveRoomId, effectiveUsername, handleRoomData]);
 
   const makeMove = (index) => {
     if (winner) return;
@@ -87,7 +99,7 @@ const TicTacToe = () => {
     if (turn !== playerSymbol) return;
 
     socket.emit("makeMove", {
-      roomId,
+      roomId: effectiveRoomId,
       index,
       symbol: playerSymbol,
     });
@@ -102,11 +114,11 @@ const TicTacToe = () => {
 
         <div style={styles.infoBar}>
           <div>
-            <strong>Room:</strong> {roomId}
+            <strong>Room:</strong> {effectiveRoomId}
           </div>
 
           <div>
-            <strong>You:</strong> {username}
+            <strong>You:</strong> {effectiveUsername}
           </div>
         </div>
 
