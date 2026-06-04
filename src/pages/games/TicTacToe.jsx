@@ -52,30 +52,42 @@ const TicTacToe = () => {
     setWinner(data.winner || "");
   }, []);
 
-  useEffect(() => {
-    if (!socket.connected) {
-      socket.connect();
-    }
+useEffect(() => {
+  if (!socket.connected) {
+    socket.connect();
+  }
 
-    socket.emit(
-      "join_room",
-      {
-        roomId,
-        username,
-      },
-      (res) => {
-        if (res?.players?.length) {
-          setPlayers(res.players);
-        }
+  socket.emit(
+    "join_room",
+    {
+      roomId,
+      username,
+    },
+    (res) => {
+      console.log("JOIN RESPONSE:", res);
+
+      if (res?.players?.length) {
+        setPlayers(res.players);
       }
-    );
+    }
+  );
 
-    socket.on("roomData", handleRoomData);
+  socket.on("roomData", handleRoomData);
 
-    return () => {
-      socket.off("roomData", handleRoomData);
-    };
-  }, [roomId, username, handleRoomData]);
+  // ADD THIS
+  socket.on("room_update", (room) => {
+    console.log("ROOM UPDATE:", room);
+
+    if (room?.players) {
+      setPlayers(room.players);
+    }
+  });
+
+  return () => {
+    socket.off("roomData", handleRoomData);
+    socket.off("room_update");
+  };
+}, [roomId, username, handleRoomData]);
 
   const makeMove = (index) => {
     if (winner) return;
@@ -90,6 +102,10 @@ const TicTacToe = () => {
       symbol: playerSymbol,
     });
   };
+
+  useEffect(() => {
+  console.log("CURRENT PLAYERS:", players);
+}, [players]);
 
   const resetGame = () => {
     window.location.reload();
