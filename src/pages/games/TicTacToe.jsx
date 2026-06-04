@@ -30,6 +30,7 @@ const TicTacToe = () => {
   const [turn, setTurn] = useState("X");
   const [winner, setWinner] = useState("");
   const [players, setPlayers] = useState(initialPlayers);
+  const [playerSymbol, setPlayerSymbol] = useState("");
 
   const recordedRef = useRef(false);
 
@@ -40,8 +41,11 @@ const TicTacToe = () => {
     );
   });
 
-  const playerSymbol =
+  const inferredPlayerSymbol =
     currentPlayerIndex === 0 ? "X" : "O";
+
+  const effectivePlayerSymbol =
+    playerSymbol || inferredPlayerSymbol;
 
   // Determine whose turn it is
   const currentTurnPlayer = (() => {
@@ -62,6 +66,15 @@ const TicTacToe = () => {
 
     if (data.players) {
       setPlayers(data.players);
+
+      const foundIndex = data.players.findIndex((player) =>
+        player.username?.trim().toLowerCase() ===
+        normalizedUsername
+      );
+
+      if (foundIndex !== -1) {
+        setPlayerSymbol(foundIndex === 0 ? "X" : "O");
+      }
     }
 
     if (data.winner && data.winner !== "") {
@@ -69,7 +82,7 @@ const TicTacToe = () => {
     }
 
     setWinner(data.winner || "");
-  }, []);
+  }, [normalizedUsername]);
 
   useEffect(() => {
     if (!effectiveRoomId || !effectiveUsername) {
@@ -93,6 +106,9 @@ const TicTacToe = () => {
         if (res?.players?.length) {
           setPlayers(res.players);
         }
+        if (res?.symbol) {
+          setPlayerSymbol(res.symbol);
+        }
       }
     );
 
@@ -103,14 +119,15 @@ const TicTacToe = () => {
   }, [effectiveRoomId, effectiveUsername, handleRoomData]);
 
   const makeMove = (index) => {
+    if (!effectivePlayerSymbol) return;
     if (winner) return;
     if (board[index] !== "") return;
-    if (turn !== playerSymbol) return;
+    if (turn !== effectivePlayerSymbol) return;
 
     socket.emit("makeMove", {
       roomId: effectiveRoomId,
       index,
-      symbol: playerSymbol,
+      symbol: effectivePlayerSymbol,
     });
   };
 
@@ -128,6 +145,9 @@ const TicTacToe = () => {
 
           <div>
             <strong>You:</strong> {effectiveUsername}
+            {effectivePlayerSymbol && (
+              <span> ({effectivePlayerSymbol})</span>
+            )}
           </div>
         </div>
 
