@@ -19,23 +19,25 @@ const TicTacToe = () => {
 
   const recordedRef = useRef(false);
 
+  const currentPlayerIndex = players.findIndex(
+    (player) => player.username === username
+  );
+
   const playerSymbol =
-    players?.[0]?.username === username
-      ? "X"
-      : "O";
+    currentPlayerIndex === 0 ? "X" : "O";
 
   // Determine whose turn it is
-const currentTurnPlayer = (() => {
-  if (players.length === 0) return "Waiting...";
+  const currentTurnPlayer = (() => {
+    if (players.length === 0) return "Waiting...";
 
-  if (players.length === 1) {
-    return players[0].username;
-  }
+    if (players.length === 1) {
+      return players[0].username;
+    }
 
-  return turn === "X"
-    ? players[0]?.username
-    : players[1]?.username;
-})();
+    return turn === "X"
+      ? players[0]?.username
+      : players[1]?.username;
+  })();
 
   const handleRoomData = useCallback((data) => {
     setBoard(data.board || Array(9).fill(""));
@@ -71,17 +73,17 @@ const currentTurnPlayer = (() => {
     );
 
     socket.on("roomData", handleRoomData);
+    socket.on("room_update", handleRoomData);
 
     return () => {
       socket.off("roomData", handleRoomData);
+      socket.off("room_update", handleRoomData);
     };
   }, [roomId, username, handleRoomData]);
 
   const makeMove = (index) => {
     if (winner) return;
-
     if (board[index] !== "") return;
-
     if (turn !== playerSymbol) return;
 
     socket.emit("makeMove", {
@@ -197,15 +199,28 @@ const styles = {
     gridTemplateColumns: "repeat(3,1fr)",
     gap: "12px",
     marginBottom: "25px",
+    width: "100%",
+    maxWidth: "420px",
+    marginLeft: "auto",
+    marginRight: "auto",
   },
 
   cell: {
+    width: "100%",
+    height: "100%",
+    minWidth: 0,
+    minHeight: 0,
+    padding: 0,
+    display: "grid",
+    placeItems: "center",
     aspectRatio: "1",
     border: "none",
     borderRadius: "16px",
-    fontSize: "50px",
+    fontSize: "clamp(2rem, 5vw, 3.5rem)",
     fontWeight: "bold",
     cursor: "pointer",
+    userSelect: "none",
+    touchAction: "manipulation",
     color: "#fff",
     background:
       "linear-gradient(135deg,#3b82f6,#8b5cf6)",
