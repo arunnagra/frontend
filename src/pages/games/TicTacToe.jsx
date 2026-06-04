@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import socket from "../../socket/socket";
 
@@ -17,24 +17,19 @@ const TicTacToe = () => {
   const [winner, setWinner] = useState("");
   const [players, setPlayers] = useState(initialPlayers);
 
-  useEffect(() => {
-    if (!roomId || !username) {
-      navigate("/");
-    }
-  }, [roomId, username, navigate]);
+  const recordedRef = useRef(false);
 
   const playerSymbol =
-    players.length > 0 && players[0]?.username === username
+    players?.[0]?.username === username
       ? "X"
-      : players.length > 1
-      ? "O"
-      : "";
+      : "O";
 
+  // Determine whose turn it is
   const currentTurnPlayer = (() => {
     if (players.length === 0) return "Waiting...";
 
     if (players.length === 1) {
-      return players[0]?.username || "Waiting...";
+      return players[0].username;
     }
 
     return turn === "X"
@@ -45,16 +40,19 @@ const TicTacToe = () => {
   const handleRoomData = useCallback((data) => {
     setBoard(data.board || Array(9).fill(""));
     setTurn(data.turn || "X");
-    setWinner(data.winner || "");
 
     if (data.players) {
       setPlayers(data.players);
     }
+
+    if (data.winner && data.winner !== "") {
+      recordedRef.current = true;
+    }
+
+    setWinner(data.winner || "");
   }, []);
 
   useEffect(() => {
-    if (!roomId || !username) return;
-
     if (!socket.connected) {
       socket.connect();
     }
@@ -75,18 +73,11 @@ const TicTacToe = () => {
     socket.on("roomData", handleRoomData);
 
     return () => {
-      socket.emit("leave_room", {
-        roomId,
-        username,
-      });
-
       socket.off("roomData", handleRoomData);
     };
   }, [roomId, username, handleRoomData]);
 
   const makeMove = (index) => {
-    if (players.length < 2) return;
-
     if (winner) return;
 
     if (board[index] !== "") return;
@@ -100,10 +91,16 @@ const TicTacToe = () => {
     });
   };
 
+  const resetGame = () => {
+    window.location.reload();
+  };
+
   return (
     <div style={styles.page}>
       <div style={styles.card}>
-        <h1 style={styles.title}>⭕ Tic Tac Toe</h1>
+        <h1 style={styles.title}>
+          ⭕ Tic Tac Toe
+        </h1>
 
         <div style={styles.infoBar}>
           <div>
@@ -116,46 +113,18 @@ const TicTacToe = () => {
         </div>
 
         <div style={styles.status}>
-          {winner ? (
-            winner === "DRAW" ? (
-              "🤝 Match Draw"
-            ) : (
-              `🏆 Winner: ${winner}`
-            )
-          ) : players.length < 2 ? (
-            "⏳ Waiting for second player..."
-          ) : (
-            `🎯 Turn: ${currentTurnPlayer} (${turn})`
-          )}
+          {winner
+            ? winner === "DRAW"
+              ? "🤝 Match Draw"
+              : `🏆 Winner: ${winner}`
+            : `🎯 Turn: ${currentTurnPlayer} (${turn})`}
         </div>
 
         <div style={styles.board}>
           {board.map((cell, index) => (
             <button
               key={index}
-              style={{
-                ...styles.cell,
-                opacity:
-                  winner ||
-                  cell !== "" ||
-                  turn !== playerSymbol ||
-                  players.length < 2
-                    ? 0.8
-                    : 1,
-                cursor:
-                  winner ||
-                  cell !== "" ||
-                  turn !== playerSymbol ||
-                  players.length < 2
-                    ? "not-allowed"
-                    : "pointer",
-              }}
-              disabled={
-                !!winner ||
-                cell !== "" ||
-                turn !== playerSymbol ||
-                players.length < 2
-              }
+              style={styles.cell}
               onClick={() => makeMove(index)}
             >
               {cell}
@@ -164,6 +133,13 @@ const TicTacToe = () => {
         </div>
 
         <div style={styles.bottom}>
+          {/* <button
+            style={styles.button}
+            onClick={resetGame}
+          >
+            🔄 Restart
+          </button> */}
+
           <button
             style={styles.button}
             onClick={() => navigate("/")}
