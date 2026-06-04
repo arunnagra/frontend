@@ -1,6 +1,7 @@
 import { useContext, useState } from "react";
 import axios from "axios";
 import { useNavigate, Link } from "react-router-dom";
+import toast from "react-hot-toast";
 import { AuthContext } from "../context/AuthContext";
 import { apiUrl } from "../config/api";
 import "../styles/auth.css";
@@ -10,6 +11,7 @@ function Register() {
   const { login } = useContext(AuthContext);
 
   const [step, setStep] = useState(1);
+  const [loading, setLoading] = useState(false);
 
   const [formData, setFormData] = useState({
     username: "",
@@ -19,7 +21,7 @@ function Register() {
 
   const { username, email, password } = formData;
 
-  
+
   const [otpArray, setOtpArray] = useState(new Array(6).fill(""));
 
   
@@ -82,17 +84,16 @@ function Register() {
 
     setOtpArray(newOtp);
   };
-
-  
-  
   
   const handleRegister = async (e) => {
     e.preventDefault();
 
     if (!username || !email || !password) {
-      alert("Please fill all fields");
+      toast.error("Please fill all fields");
       return;
     }
+
+    setLoading(true);
 
     try {
       const res = await axios.post(
@@ -104,15 +105,15 @@ function Register() {
         }
       );
 
-      alert(res.data.msg);
+      toast.success(res.data.msg || "OTP sent successfully");
       setStep(2);
     } catch (error) {
-      console.log(error);
+      console.error("Register error:", error);
 
-      alert(
-        error.response?.data?.msg ||
-          "Registration Failed"
-      );
+      const errorMsg = error.response?.data?.msg || error.message || "Registration Failed";
+      toast.error(errorMsg);
+    } finally {
+      setLoading(false);
     }
   };
   
@@ -123,9 +124,11 @@ function Register() {
     const otp = otpArray.join("");
 
     if (otp.length !== 6) {
-      alert("Please enter full 6-digit OTP");
+      toast.error("Please enter full 6-digit OTP");
       return;
     }
+
+    setLoading(true);
 
     try {
       const res = await axios.post(
@@ -138,16 +141,16 @@ function Register() {
 
       login(res.data.token, res.data.user);
 
-      alert("Registration Successful");
+      toast.success("Registration Successful!");
 
       navigate("/");
     } catch (error) {
-      console.log(error);
+      console.error("OTP verification error:", error);
 
-      alert(
-        error.response?.data?.msg ||
-          "Invalid OTP"
-      );
+      const errorMsg = error.response?.data?.msg || error.message || "Invalid OTP";
+      toast.error(errorMsg);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -193,8 +196,9 @@ function Register() {
           <button
             type="submit"
             className="auth-btn"
+            disabled={loading}
           >
-            Send OTP
+            {loading ? "Sending OTP..." : "Send OTP"}
           </button>
 
           <p className="auth-link">
@@ -247,8 +251,9 @@ function Register() {
           <button
             type="submit"
             className="auth-btn"
+            disabled={loading}
           >
-            Verify OTP
+            {loading ? "Verifying..." : "Verify OTP"}
           </button>
         </form>
       )}

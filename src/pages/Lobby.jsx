@@ -3,6 +3,7 @@ import axios from "axios";
 import { useLocation, useNavigate } from "react-router-dom";
 import { AuthContext } from "../context/AuthContext";
 import { apiUrl } from "../config/api";
+import socket from "../socket/socket";
 
 const gameMap = {
   "tic-tac-toe": {
@@ -96,7 +97,8 @@ const Lobby = () => {
 
       switch (activeGame.id) {
         case "chess":
-          navigate(`/chess/${currentRoomId}`, { state: gameState });
+          alert("Chess is temporarily disabled.");
+          navigate("/");
           break;
         case "quiz-battle":
           navigate(`/quiz/${currentRoomId}`, { state: gameState });
@@ -177,20 +179,25 @@ const Lobby = () => {
       .then(() => {
         setRoomStatus("playing");
 
+        if (!socket.connected) {
+          socket.connect();
+        }
+
+        socket.emit("start_game", { roomId }, (ack) => {
+          if (ack?.error) {
+            console.error("Socket start_game error:", ack.error);
+          } else {
+            console.log("Socket start_game ack:", ack);
+          }
+        });
+
         const activeGame = selectedGameState;
 
         switch (activeGame.id) {
           case "chess":
-            navigate(`/chess/${roomId}`, {
-              state: {
-                roomId,
-                players,
-                username: username || user?.username || "",
-                isHost,
-                selectedGame: activeGame,
-              },
-            });
-            break;
+            alert("Chess is temporarily disabled.");
+            navigate("/");
+            return;
           case "quiz-battle":
             navigate(`/quiz/${roomId}`, {
               state: {

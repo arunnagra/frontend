@@ -16,6 +16,7 @@ const TicTacToe = () => {
   const [turn, setTurn] = useState("X");
   const [winner, setWinner] = useState("");
   const [players, setPlayers] = useState(initialPlayers);
+
   const recordedRef = useRef(false);
 
   const playerSymbol =
@@ -23,9 +24,26 @@ const TicTacToe = () => {
       ? "X"
       : "O";
 
+  // Determine whose turn it is
+const currentTurnPlayer = (() => {
+  if (players.length === 0) return "Waiting...";
+
+  if (players.length === 1) {
+    return players[0].username;
+  }
+
+  return turn === "X"
+    ? players[0]?.username
+    : players[1]?.username;
+})();
+
   const handleRoomData = useCallback((data) => {
     setBoard(data.board || Array(9).fill(""));
     setTurn(data.turn || "X");
+
+    if (data.players) {
+    setPlayers(data.players);
+  }
 
     if (data.winner && data.winner !== "") {
       recordedRef.current = true;
@@ -73,10 +91,6 @@ const TicTacToe = () => {
     });
   };
 
-  const resetGame = () => {
-    window.location.reload();
-  };
-
   return (
     <div style={styles.page}>
       <div style={styles.card}>
@@ -99,7 +113,7 @@ const TicTacToe = () => {
             ? winner === "DRAW"
               ? "🤝 Match Draw"
               : `🏆 Winner: ${winner}`
-            : `Turn: ${turn}`}
+            : `🎯 Turn: ${currentTurnPlayer} (${turn})`}
         </div>
 
         <div style={styles.board}>
@@ -115,18 +129,18 @@ const TicTacToe = () => {
         </div>
 
         <div style={styles.bottom}>
-          <button
+          {/* <button
             style={styles.button}
             onClick={resetGame}
           >
             🔄 Restart
-          </button>
+          </button> */}
 
           <button
             style={styles.button}
             onClick={() => navigate("/")}
           >
-            🏠 Home
+             Exit Game
           </button>
         </div>
       </div>

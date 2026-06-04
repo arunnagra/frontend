@@ -24,7 +24,7 @@ import Lobby from "./pages/Lobby";
 
 
 import TicTacToe from "./pages/games/TicTacToe";
-import ChessGame from "./pages/games/ChessGame";
+// import ChessGame from "./pages/games/ChessGame";
 import QuizBattle from "./pages/games/QuizBattle";
 import MemoryMatch from "./pages/games/MemoryMatch";
 import SnakeLadder from "./pages/games/SnakeLadder";
@@ -169,6 +169,7 @@ function App() {
         />
 
         {}
+        {/*
         <Route
           path="/chess/:roomId"
           element={
@@ -177,8 +178,8 @@ function App() {
               : <Navigate to="/login" />
           }
         />
+        */}
 
-        {}
         <Route
           path="/quiz/:roomId"
           element={
@@ -231,6 +232,7 @@ function App() {
         />
 
         {}
+        {/*
         <Route
           path="/chess"
           element={
@@ -239,6 +241,7 @@ function App() {
               : <Navigate to="/login" />
           }
         />
+        */}
 
         {
 

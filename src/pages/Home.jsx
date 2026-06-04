@@ -16,11 +16,11 @@ function Home() {
       name: "Tic Tac Toe",
       icon: "⭕",
     },
-    {
-      id: "chess",
-      name: "Chess",
-      icon: "♟️",
-    },
+    // {
+    //   id: "chess",
+    //   name: "Chess",
+    //   icon: "♟️",
+    // },
     {
       id: "memory-match",
       name: "Memory Match",
@@ -83,10 +83,12 @@ function Home() {
               <span>Tic Tac Toe</span>
             </div>
 
+            {/*
             <div className="player-item">
               <div className="player-circle">C</div>
               <span>Chess</span>
             </div>
+            */}
 
             <div className="player-item">
               <div className="player-circle">M</div>
@@ -96,6 +98,11 @@ function Home() {
             <div className="player-item">
               <div className="player-circle">Q</div>
               <span>Quiz Battle</span>
+            </div>
+
+            <div className="player-item">
+              <div className="player-circle">S</div>
+              <span>Snake & Ladder</span>
             </div>
 
           </div>
@@ -150,7 +157,7 @@ function Home() {
                 🎯 Create Room
               </button>
 
-              {/* Quick Links removed from host-card; moved below join/create */}
+              {/* Quick Links removed from host-card */}
 
             </div>
 
