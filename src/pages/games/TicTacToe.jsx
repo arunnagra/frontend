@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import socket from "../../socket/socket";
 
@@ -17,42 +17,44 @@ const TicTacToe = () => {
   const [winner, setWinner] = useState("");
   const [players, setPlayers] = useState(initialPlayers);
 
-  const recordedRef = useRef(false);
+  useEffect(() => {
+    if (!roomId || !username) {
+      navigate("/");
+    }
+  }, [roomId, username, navigate]);
 
   const playerSymbol =
-    players?.[0]?.username === username
+    players.length > 0 && players[0]?.username === username
       ? "X"
-      : "O";
+      : players.length > 1
+      ? "O"
+      : "";
 
-  // Determine whose turn it is
-const currentTurnPlayer = (() => {
-  if (players.length === 0) return "Waiting...";
+  const currentTurnPlayer = (() => {
+    if (players.length === 0) return "Waiting...";
 
-  if (players.length === 1) {
-    return players[0].username;
-  }
+    if (players.length === 1) {
+      return players[0]?.username || "Waiting...";
+    }
 
-  return turn === "X"
-    ? players[0]?.username
-    : players[1]?.username;
-})();
+    return turn === "X"
+      ? players[0]?.username
+      : players[1]?.username;
+  })();
 
   const handleRoomData = useCallback((data) => {
     setBoard(data.board || Array(9).fill(""));
     setTurn(data.turn || "X");
+    setWinner(data.winner || "");
 
     if (data.players) {
-    setPlayers(data.players);
-  }
-
-    if (data.winner && data.winner !== "") {
-      recordedRef.current = true;
+      setPlayers(data.players);
     }
-
-    setWinner(data.winner || "");
   }, []);
 
   useEffect(() => {
+    if (!roomId || !username) return;
+
     if (!socket.connected) {
       socket.connect();
     }
@@ -73,11 +75,18 @@ const currentTurnPlayer = (() => {
     socket.on("roomData", handleRoomData);
 
     return () => {
+      socket.emit("leave_room", {
+        roomId,
+        username,
+      });
+
       socket.off("roomData", handleRoomData);
     };
   }, [roomId, username, handleRoomData]);
 
   const makeMove = (index) => {
+    if (players.length < 2) return;
+
     if (winner) return;
 
     if (board[index] !== "") return;
@@ -94,9 +103,7 @@ const currentTurnPlayer = (() => {
   return (
     <div style={styles.page}>
       <div style={styles.card}>
-        <h1 style={styles.title}>
-          ⭕ Tic Tac Toe
-        </h1>
+        <h1 style={styles.title}>⭕ Tic Tac Toe</h1>
 
         <div style={styles.infoBar}>
           <div>
@@ -109,18 +116,46 @@ const currentTurnPlayer = (() => {
         </div>
 
         <div style={styles.status}>
-          {winner
-            ? winner === "DRAW"
-              ? "🤝 Match Draw"
-              : `🏆 Winner: ${winner}`
-            : `🎯 Turn: ${currentTurnPlayer} (${turn})`}
+          {winner ? (
+            winner === "DRAW" ? (
+              "🤝 Match Draw"
+            ) : (
+              `🏆 Winner: ${winner}`
+            )
+          ) : players.length < 2 ? (
+            "⏳ Waiting for second player..."
+          ) : (
+            `🎯 Turn: ${currentTurnPlayer} (${turn})`
+          )}
         </div>
 
         <div style={styles.board}>
           {board.map((cell, index) => (
             <button
               key={index}
-              style={styles.cell}
+              style={{
+                ...styles.cell,
+                opacity:
+                  winner ||
+                  cell !== "" ||
+                  turn !== playerSymbol ||
+                  players.length < 2
+                    ? 0.8
+                    : 1,
+                cursor:
+                  winner ||
+                  cell !== "" ||
+                  turn !== playerSymbol ||
+                  players.length < 2
+                    ? "not-allowed"
+                    : "pointer",
+              }}
+              disabled={
+                !!winner ||
+                cell !== "" ||
+                turn !== playerSymbol ||
+                players.length < 2
+              }
               onClick={() => makeMove(index)}
             >
               {cell}
@@ -129,18 +164,11 @@ const currentTurnPlayer = (() => {
         </div>
 
         <div style={styles.bottom}>
-          {/* <button
-            style={styles.button}
-            onClick={resetGame}
-          >
-            🔄 Restart
-          </button> */}
-
           <button
             style={styles.button}
             onClick={() => navigate("/")}
           >
-             Exit Game
+            Exit Game
           </button>
         </div>
       </div>
@@ -205,10 +233,10 @@ const styles = {
     borderRadius: "16px",
     fontSize: "50px",
     fontWeight: "bold",
-    cursor: "pointer",
     color: "#fff",
     background:
       "linear-gradient(135deg,#3b82f6,#8b5cf6)",
+    transition: "0.2s",
   },
 
   bottom: {
