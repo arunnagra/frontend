@@ -4,6 +4,7 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { AuthContext } from "../context/AuthContext";
 import { apiUrl } from "../config/api";
 import socket from "../socket/socket";
+import HomeButton from "../components/HomeButton";
 
 const CreateRoom = () => {
   const { user } = useContext(AuthContext);
@@ -111,6 +112,7 @@ const CreateRoom = () => {
 
   return (
     <div style={styles.page}>
+      <HomeButton />
       <div style={styles.backgroundGlow1}></div>
       <div style={styles.backgroundGlow2}></div>
 

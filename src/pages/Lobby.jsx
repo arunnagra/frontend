@@ -4,6 +4,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { AuthContext } from "../context/AuthContext";
 import { apiUrl } from "../config/api";
 import socket from "../socket/socket";
+import HomeButton from "../components/HomeButton";
 
 const gameMap = {
   "tic-tac-toe": {
@@ -266,6 +267,7 @@ const Lobby = () => {
   return (
     <>
       <style>{spinStyle}</style>
+      <HomeButton />
       <div style={styles.container}>
 
         {}

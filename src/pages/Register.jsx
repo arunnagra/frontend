@@ -4,6 +4,7 @@ import { useNavigate, Link } from "react-router-dom";
 import toast from "react-hot-toast";
 import { AuthContext } from "../context/AuthContext";
 import { apiUrl } from "../config/api";
+import HomeButton from "../components/HomeButton";
 import "../styles/auth.css";
 
 function Register() {
@@ -50,9 +51,6 @@ function Register() {
     }
   };
 
-  
-  
-  
   const handleKeyDown = (e, index) => {
     if (
       e.key === "Backspace" &&
@@ -63,8 +61,6 @@ function Register() {
     }
   };
 
-  
-  
   
   const handlePaste = (e) => {
     e.preventDefault();
@@ -90,6 +86,16 @@ function Register() {
 
     if (!username || !email || !password) {
       toast.error("Please fill all fields");
+      return;
+    }
+
+    if (username.length < 3) {
+      toast.error("Username must be at least 3 characters");
+      return;
+    }
+
+    if (password.length < 3) {
+      toast.error("Password must be at least 3 characters");
       return;
     }
 
@@ -156,6 +162,7 @@ function Register() {
 
   return (
     <div className="auth-container">
+      <HomeButton />
       {step === 1 ? (
         <form
           className="auth-form"

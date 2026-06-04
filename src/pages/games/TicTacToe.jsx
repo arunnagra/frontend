@@ -1,252 +1,213 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import socket from "../../socket/socket";
+import HomeButton from "../../components/HomeButton";
 
 const TicTacToe = () => {
   const navigate = useNavigate();
   const location = useLocation();
 
-  const {
-    roomId = "",
-    username = "",
-    players: initialPlayers = [],
-  } = location.state || {};
+  const { roomId = "", username = "", players: initialPlayers = [] } = location.state || {};
 
   const [board, setBoard] = useState(Array(9).fill(""));
   const [turn, setTurn] = useState("X");
   const [winner, setWinner] = useState("");
   const [players, setPlayers] = useState(initialPlayers);
 
-  const recordedRef = useRef(false);
+  // player[0] = X, player[1] = O
+  const playerSymbol = players?.[0]?.username === username ? "X" : "O";
 
-  const playerSymbol =
-    players?.[0]?.username === username
-      ? "X"
-      : "O";
+  const symbolToName = (sym) =>
+    sym === "X"
+      ? players[0]?.username || "Player 1"
+      : players[1]?.username || "Player 2";
 
-  // Determine whose turn it is
-  const currentTurnPlayer = (() => {
-    if (players.length === 0) return "Waiting...";
+  const isMyTurn = turn === playerSymbol && players.length >= 2 && !winner;
 
-    if (players.length === 1) {
-      return players[0].username;
-    }
-
-    return turn === "X"
-      ? players[0]?.username
-      : players[1]?.username;
-  })();
+  const statusText = () => {
+    if (players.length < 2) return "⏳ Waiting for opponent to join...";
+    if (winner === "DRAW") return "🤝 It's a Draw!";
+    if (winner) return `🏆 ${symbolToName(winner)} Wins!`;
+    return isMyTurn ? "🎯 Your turn!" : `⏳ ${symbolToName(turn)}'s turn`;
+  };
 
   const handleRoomData = useCallback((data) => {
     setBoard(data.board || Array(9).fill(""));
     setTurn(data.turn || "X");
-
-    if (data.players) {
-      setPlayers(data.players);
-    }
-
-    if (data.winner && data.winner !== "") {
-      recordedRef.current = true;
-    }
-
+    if (data.players?.length) setPlayers(data.players);
     setWinner(data.winner || "");
   }, []);
 
-useEffect(() => {
-  if (!socket.connected) {
-    socket.connect();
-  }
+  useEffect(() => {
+    if (!socket.connected) socket.connect();
 
-  socket.emit(
-    "join_room",
-    {
-      roomId,
-      username,
-    },
-    (res) => {
-      console.log("JOIN RESPONSE:", res);
+    socket.emit("join_room", { roomId, username }, (res) => {
+      if (res?.players?.length) setPlayers(res.players);
+    });
 
-      if (res?.players?.length) {
-        setPlayers(res.players);
-      }
-    }
-  );
+    socket.on("roomData", handleRoomData);
+    socket.on("room_update", (room) => {
+      if (room?.players) setPlayers(room.players);
+    });
 
-  socket.on("roomData", handleRoomData);
-
-  // ADD THIS
-  socket.on("room_update", (room) => {
-    console.log("ROOM UPDATE:", room);
-
-    if (room?.players) {
-      setPlayers(room.players);
-    }
-  });
-
-  return () => {
-    socket.off("roomData", handleRoomData);
-    socket.off("room_update");
-  };
-}, [roomId, username, handleRoomData]);
+    return () => {
+      socket.off("roomData", handleRoomData);
+      socket.off("room_update");
+    };
+  }, [roomId, username, handleRoomData]);
 
   const makeMove = (index) => {
-    if (winner) return;
-
-    if (board[index] !== "") return;
-
-    if (turn !== playerSymbol) return;
-
-    socket.emit("makeMove", {
-      roomId,
-      index,
-      symbol: playerSymbol,
-    });
-  };
-
-  useEffect(() => {
-  console.log("CURRENT PLAYERS:", players);
-}, [players]);
-
-  const resetGame = () => {
-    window.location.reload();
+    if (!isMyTurn || board[index] !== "") return;
+    socket.emit("makeMove", { roomId, index, symbol: playerSymbol });
   };
 
   return (
-    <div style={styles.page}>
-      <div style={styles.card}>
-        <h1 style={styles.title}>
-          ⭕ Tic Tac Toe
-        </h1>
+    <div style={s.page}>
+      <HomeButton />
+      <div style={s.card}>
+        <h1 style={s.title}>⭕ Tic Tac Toe</h1>
 
-        <div style={styles.infoBar}>
-          <div>
-            <strong>Room:</strong> {roomId}
-          </div>
-
-          <div>
-            <strong>You:</strong> {username}
-          </div>
+        {/* Players row */}
+        <div style={s.playersRow}>
+          {[0, 1].map((i) => {
+            const p = players[i];
+            const sym = i === 0 ? "✖" : "⭕";
+            const active = (i === 0 ? turn === "X" : turn === "O") && !winner && players.length >= 2;
+            return (
+              <div key={i} style={{ ...s.playerChip, ...(active ? s.activeChip : {}) }}>
+                {sym} {p ? p.username : "Waiting..."}
+                {p?.username === username && <span style={s.youTag}> (you)</span>}
+              </div>
+            );
+          })}
         </div>
 
-        <div style={styles.status}>
-          {winner
-            ? winner === "DRAW"
-              ? "🤝 Match Draw"
-              : `🏆 Winner: ${winner}`
-            : `🎯 Turn: ${currentTurnPlayer} (${turn})`}
-        </div>
+        <div style={{ ...s.status, ...(winner ? s.statusWin : {}) }}>{statusText()}</div>
 
-        <div style={styles.board}>
-          {board.map((cell, index) => (
+        <div style={s.board}>
+          {board.map((cell, i) => (
             <button
-              key={index}
-              style={styles.cell}
-              onClick={() => makeMove(index)}
+              key={i}
+              style={{
+                ...s.cell,
+                ...(cell === "X" ? s.cellX : {}),
+                ...(cell === "O" ? s.cellO : {}),
+                cursor: isMyTurn && !cell ? "pointer" : "default",
+                opacity: !cell && !isMyTurn && !winner ? 0.6 : 1,
+              }}
+              onClick={() => makeMove(i)}
             >
               {cell}
             </button>
           ))}
         </div>
 
-        <div style={styles.bottom}>
-          {/* <button
-            style={styles.button}
-            onClick={resetGame}
-          >
-            🔄 Restart
-          </button> */}
-
-          <button
-            style={styles.button}
-            onClick={() => navigate("/")}
-          >
-            Exit Game
-          </button>
+        <div style={s.footer}>
+          <span style={s.roomTag}>Room: {roomId}</span>
+          <span style={s.youSymbol}>You: {username} ({playerSymbol})</span>
+          {winner && (
+            <button style={s.homeBtn} onClick={() => navigate("/")}>
+              Back to Home
+            </button>
+          )}
         </div>
       </div>
     </div>
   );
 };
 
-const styles = {
+const s = {
   page: {
     minHeight: "100vh",
     display: "flex",
     justifyContent: "center",
     alignItems: "center",
-    background:
-      "linear-gradient(135deg,#0f172a,#111827,#1e293b)",
+    background: "linear-gradient(135deg,#0f172a,#111827,#1e293b)",
     padding: "20px",
   },
-
   card: {
     width: "100%",
-    maxWidth: "650px",
+    maxWidth: "520px",
     background: "rgba(255,255,255,0.05)",
     border: "1px solid rgba(255,255,255,0.1)",
     backdropFilter: "blur(20px)",
     borderRadius: "24px",
-    padding: "30px",
+    padding: "32px 28px",
     color: "#fff",
     textAlign: "center",
   },
-
-  title: {
-    marginBottom: "20px",
-    fontSize: "36px",
-  },
-
-  infoBar: {
+  title: { marginBottom: "20px", fontSize: "32px", fontWeight: 700 },
+  playersRow: {
     display: "flex",
-    justifyContent: "space-between",
+    justifyContent: "center",
+    gap: "16px",
     marginBottom: "20px",
-    color: "#cbd5e1",
     flexWrap: "wrap",
-    gap: "10px",
   },
-
+  playerChip: {
+    padding: "8px 18px",
+    borderRadius: "999px",
+    background: "rgba(255,255,255,0.07)",
+    border: "1.5px solid rgba(255,255,255,0.15)",
+    fontSize: "14px",
+    fontWeight: 600,
+    color: "#94a3b8",
+    transition: "0.2s",
+  },
+  activeChip: {
+    background: "rgba(59,130,246,0.2)",
+    border: "1.5px solid #3b82f6",
+    color: "#fff",
+    boxShadow: "0 0 12px rgba(59,130,246,0.35)",
+  },
+  youTag: { color: "#22c55e", fontSize: "12px" },
   status: {
-    fontSize: "22px",
-    fontWeight: "700",
-    marginBottom: "25px",
+    fontSize: "20px",
+    fontWeight: 700,
+    marginBottom: "24px",
     color: "#60a5fa",
+    minHeight: "30px",
   },
-
+  statusWin: { color: "#22c55e", fontSize: "24px" },
   board: {
     display: "grid",
     gridTemplateColumns: "repeat(3,1fr)",
-    gap: "12px",
-    marginBottom: "25px",
+    gap: "10px",
+    marginBottom: "24px",
   },
-
   cell: {
     aspectRatio: "1",
     border: "none",
-    borderRadius: "16px",
-    fontSize: "50px",
+    borderRadius: "14px",
+    fontSize: "48px",
     fontWeight: "bold",
     color: "#fff",
-    background:
-      "linear-gradient(135deg,#3b82f6,#8b5cf6)",
-    transition: "0.2s",
+    background: "rgba(255,255,255,0.08)",
+    border: "1px solid rgba(255,255,255,0.1)",
+    transition: "0.15s",
   },
-
-  bottom: {
+  cellX: { background: "linear-gradient(135deg,#ef4444,#dc2626)", border: "none" },
+  cellO: { background: "linear-gradient(135deg,#3b82f6,#2563eb)", border: "none" },
+  footer: {
     display: "flex",
-    gap: "15px",
-    justifyContent: "center",
+    justifyContent: "space-between",
+    alignItems: "center",
     flexWrap: "wrap",
+    gap: "10px",
+    fontSize: "13px",
+    color: "#64748b",
   },
-
-  button: {
-    padding: "14px 28px",
+  roomTag: { fontFamily: "monospace", letterSpacing: "0.05em" },
+  youSymbol: { color: "#94a3b8" },
+  homeBtn: {
+    padding: "10px 22px",
     border: "none",
-    borderRadius: "12px",
-    cursor: "pointer",
+    borderRadius: "10px",
+    background: "linear-gradient(135deg,#22c55e,#16a34a)",
     color: "#fff",
-    fontWeight: "600",
-    background:
-      "linear-gradient(135deg,#22c55e,#16a34a)",
+    fontWeight: 700,
+    cursor: "pointer",
+    fontSize: "14px",
   },
 };
 
