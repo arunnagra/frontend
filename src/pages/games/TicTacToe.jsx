@@ -1,13 +1,10 @@
-import React, { useCallback, useContext, useEffect, useRef, useState } from "react";
-import { useLocation, useNavigate, useParams } from "react-router-dom";
+import React, { useCallback, useEffect, useRef, useState } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import socket from "../../socket/socket";
-import { AuthContext } from "../../context/AuthContext";
 
 const TicTacToe = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { roomId: routeRoomId = "" } = useParams();
-  const { user } = useContext(AuthContext);
 
   const {
     roomId = "",
@@ -15,120 +12,81 @@ const TicTacToe = () => {
     players: initialPlayers = [],
   } = location.state || {};
 
-  const effectiveRoomId = roomId || routeRoomId;
   const effectiveUsername =
     username ||
-    user?.username ||
     (typeof window !== "undefined"
       ? localStorage.getItem("gs_username") || ""
       : "");
-  const normalizedUsername = effectiveUsername
-    .trim()
-    .toLowerCase();
+
+  useEffect(() => {
+    if (username) {
+      localStorage.setItem("gs_username", username);
+    }
+  }, [username]);
 
   const [board, setBoard] = useState(Array(9).fill(""));
   const [turn, setTurn] = useState("X");
   const [winner, setWinner] = useState("");
   const [players, setPlayers] = useState(initialPlayers);
-  const [playerSymbol, setPlayerSymbol] = useState("");
-
   const recordedRef = useRef(false);
 
-  const currentPlayerIndex = players.findIndex((player) => {
-    return (
-      player.username?.trim().toLowerCase() ===
-      normalizedUsername
-    );
-  });
-
-  const inferredPlayerSymbol =
-    currentPlayerIndex === 0 ? "X" : "O";
-
-  const effectivePlayerSymbol =
-    playerSymbol || inferredPlayerSymbol;
-
-  // Determine whose turn it is
-  const currentTurnPlayer = (() => {
-    if (players.length === 0) return "Waiting...";
-
-    if (players.length === 1) {
-      return players[0].username;
-    }
-
-    return turn === "X"
-      ? players[0]?.username
-      : players[1]?.username;
-  })();
+  const playerSymbol =
+    players?.[0]?.username === effectiveUsername
+      ? "X"
+      : "O";
 
   const handleRoomData = useCallback((data) => {
     setBoard(data.board || Array(9).fill(""));
     setTurn(data.turn || "X");
-
-    if (data.players) {
-      setPlayers(data.players);
-
-      const foundIndex = data.players.findIndex((player) =>
-        player.username?.trim().toLowerCase() ===
-        normalizedUsername
-      );
-
-      if (foundIndex !== -1) {
-        setPlayerSymbol(foundIndex === 0 ? "X" : "O");
-      }
-    }
 
     if (data.winner && data.winner !== "") {
       recordedRef.current = true;
     }
 
     setWinner(data.winner || "");
-  }, [normalizedUsername]);
+  }, []);
 
   useEffect(() => {
-    if (!effectiveRoomId || !effectiveUsername) {
-      return;
-    }
-
     if (!socket.connected) {
       socket.connect();
     }
 
-    socket.on("roomData", handleRoomData);
-    socket.on("room_update", handleRoomData);
-
     socket.emit(
       "join_room",
       {
-        roomId: effectiveRoomId,
+        roomId,
         username: effectiveUsername,
       },
       (res) => {
         if (res?.players?.length) {
           setPlayers(res.players);
         }
-        if (res?.symbol) {
-          setPlayerSymbol(res.symbol);
-        }
       }
     );
 
+    socket.on("roomData", handleRoomData);
+
     return () => {
       socket.off("roomData", handleRoomData);
-      socket.off("room_update", handleRoomData);
     };
-  }, [effectiveRoomId, effectiveUsername, handleRoomData]);
+  }, [roomId, username, handleRoomData]);
 
   const makeMove = (index) => {
-    if (!effectivePlayerSymbol) return;
     if (winner) return;
+
     if (board[index] !== "") return;
-    if (turn !== effectivePlayerSymbol) return;
+
+    if (turn !== playerSymbol) return;
 
     socket.emit("makeMove", {
-      roomId: effectiveRoomId,
+      roomId,
       index,
-      symbol: effectivePlayerSymbol,
+      symbol: playerSymbol,
     });
+  };
+
+  const resetGame = () => {
+    window.location.reload();
   };
 
   return (
@@ -140,14 +98,11 @@ const TicTacToe = () => {
 
         <div style={styles.infoBar}>
           <div>
-            <strong>Room:</strong> {effectiveRoomId}
+            <strong>Room:</strong> {roomId}
           </div>
 
           <div>
             <strong>You:</strong> {effectiveUsername}
-            {effectivePlayerSymbol && (
-              <span> ({effectivePlayerSymbol})</span>
-            )}
           </div>
         </div>
 
@@ -156,7 +111,7 @@ const TicTacToe = () => {
             ? winner === "DRAW"
               ? "🤝 Match Draw"
               : `🏆 Winner: ${winner}`
-            : `🎯 Turn: ${currentTurnPlayer} (${turn})`}
+            : `Turn: ${turn}`}
         </div>
 
         <div style={styles.board}>
@@ -172,18 +127,18 @@ const TicTacToe = () => {
         </div>
 
         <div style={styles.bottom}>
-          {/* <button
+          <button
             style={styles.button}
             onClick={resetGame}
           >
             🔄 Restart
-          </button> */}
+          </button>
 
           <button
             style={styles.button}
             onClick={() => navigate("/")}
           >
-             Exit Game
+            🏠 Home
           </button>
         </div>
       </div>
@@ -240,28 +195,15 @@ const styles = {
     gridTemplateColumns: "repeat(3,1fr)",
     gap: "12px",
     marginBottom: "25px",
-    width: "100%",
-    maxWidth: "420px",
-    marginLeft: "auto",
-    marginRight: "auto",
   },
 
   cell: {
-    width: "100%",
-    height: "100%",
-    minWidth: 0,
-    minHeight: 0,
-    padding: 0,
-    display: "grid",
-    placeItems: "center",
     aspectRatio: "1",
     border: "none",
     borderRadius: "16px",
-    fontSize: "clamp(2rem, 5vw, 3.5rem)",
+    fontSize: "50px",
     fontWeight: "bold",
     cursor: "pointer",
-    userSelect: "none",
-    touchAction: "manipulation",
     color: "#fff",
     background:
       "linear-gradient(135deg,#3b82f6,#8b5cf6)",
