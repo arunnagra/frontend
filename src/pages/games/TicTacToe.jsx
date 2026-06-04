@@ -1,11 +1,13 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useContext, useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import socket from "../../socket/socket";
+import { AuthContext } from "../../context/AuthContext";
 
 const TicTacToe = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { roomId: routeRoomId = "" } = useParams();
+  const { user } = useContext(AuthContext);
 
   const {
     roomId = "",
@@ -16,9 +18,13 @@ const TicTacToe = () => {
   const effectiveRoomId = roomId || routeRoomId;
   const effectiveUsername =
     username ||
+    user?.username ||
     (typeof window !== "undefined"
       ? localStorage.getItem("gs_username") || ""
       : "");
+  const normalizedUsername = effectiveUsername
+    .trim()
+    .toLowerCase();
 
   const [board, setBoard] = useState(Array(9).fill(""));
   const [turn, setTurn] = useState("X");
@@ -27,9 +33,12 @@ const TicTacToe = () => {
 
   const recordedRef = useRef(false);
 
-  const currentPlayerIndex = players.findIndex(
-    (player) => player.username === effectiveUsername
-  );
+  const currentPlayerIndex = players.findIndex((player) => {
+    return (
+      player.username?.trim().toLowerCase() ===
+      normalizedUsername
+    );
+  });
 
   const playerSymbol =
     currentPlayerIndex === 0 ? "X" : "O";
@@ -71,6 +80,9 @@ const TicTacToe = () => {
       socket.connect();
     }
 
+    socket.on("roomData", handleRoomData);
+    socket.on("room_update", handleRoomData);
+
     socket.emit(
       "join_room",
       {
@@ -83,9 +95,6 @@ const TicTacToe = () => {
         }
       }
     );
-
-    socket.on("roomData", handleRoomData);
-    socket.on("room_update", handleRoomData);
 
     return () => {
       socket.off("roomData", handleRoomData);
