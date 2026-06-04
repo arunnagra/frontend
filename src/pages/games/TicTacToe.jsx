@@ -1,11 +1,10 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { useLocation, useNavigate, useParams } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import socket from "../../socket/socket";
 
 const TicTacToe = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { roomId: routeRoomId = "" } = useParams();
 
   const {
     roomId = "",
@@ -13,66 +12,56 @@ const TicTacToe = () => {
     players: initialPlayers = [],
   } = location.state || {};
 
-  const effectiveRoomId = roomId || routeRoomId;
-
-  const effectiveUsername =
-    username ||
-    (typeof window !== "undefined"
-      ? localStorage.getItem("gs_username") || ""
-      : "");
-  const normalizedUsername = effectiveUsername
-    .trim()
-    .toLowerCase();
-
-  useEffect(() => {
-    if (username) {
-      localStorage.setItem("gs_username", username);
-    }
-  }, [username]);
-
   const [board, setBoard] = useState(Array(9).fill(""));
   const [turn, setTurn] = useState("X");
   const [winner, setWinner] = useState("");
   const [players, setPlayers] = useState(initialPlayers);
+
   const recordedRef = useRef(false);
 
   const playerSymbol =
-    players?.findIndex(
-      (player) =>
-        player.username?.trim().toLowerCase() ===
-        normalizedUsername
-    ) === 0
+    players?.[0]?.username === username
       ? "X"
       : "O";
+
+  // Determine whose turn it is
+const currentTurnPlayer = (() => {
+  if (players.length === 0) return "Waiting...";
+
+  if (players.length === 1) {
+    return players[0].username;
+  }
+
+  return turn === "X"
+    ? players[0]?.username
+    : players[1]?.username;
+})();
 
   const handleRoomData = useCallback((data) => {
     setBoard(data.board || Array(9).fill(""));
     setTurn(data.turn || "X");
 
     if (data.players) {
-      setPlayers(data.players);
-    }
+    setPlayers(data.players);
+  }
 
     if (data.winner && data.winner !== "") {
       recordedRef.current = true;
     }
 
     setWinner(data.winner || "");
-  }, [normalizedUsername]);
+  }, []);
 
   useEffect(() => {
     if (!socket.connected) {
       socket.connect();
     }
 
-    socket.on("roomData", handleRoomData);
-    socket.on("room_update", handleRoomData);
-
     socket.emit(
       "join_room",
       {
-        roomId: effectiveRoomId,
-        username: effectiveUsername,
+        roomId,
+        username,
       },
       (res) => {
         if (res?.players?.length) {
@@ -81,11 +70,12 @@ const TicTacToe = () => {
       }
     );
 
+    socket.on("roomData", handleRoomData);
+
     return () => {
       socket.off("roomData", handleRoomData);
-      socket.off("room_update", handleRoomData);
     };
-  }, [effectiveRoomId, effectiveUsername, handleRoomData]);
+  }, [roomId, username, handleRoomData]);
 
   const makeMove = (index) => {
     if (winner) return;
@@ -95,14 +85,10 @@ const TicTacToe = () => {
     if (turn !== playerSymbol) return;
 
     socket.emit("makeMove", {
-      roomId: effectiveRoomId,
+      roomId,
       index,
       symbol: playerSymbol,
     });
-  };
-
-  const resetGame = () => {
-    window.location.reload();
   };
 
   return (
@@ -114,11 +100,11 @@ const TicTacToe = () => {
 
         <div style={styles.infoBar}>
           <div>
-            <strong>Room:</strong> {effectiveRoomId}
+            <strong>Room:</strong> {roomId}
           </div>
 
           <div>
-            <strong>You:</strong> {effectiveUsername}
+            <strong>You:</strong> {username}
           </div>
         </div>
 
@@ -127,7 +113,7 @@ const TicTacToe = () => {
             ? winner === "DRAW"
               ? "🤝 Match Draw"
               : `🏆 Winner: ${winner}`
-            : `Turn: ${turn}`}
+            : `🎯 Turn: ${currentTurnPlayer} (${turn})`}
         </div>
 
         <div style={styles.board}>
@@ -143,18 +129,18 @@ const TicTacToe = () => {
         </div>
 
         <div style={styles.bottom}>
-          <button
+          {/* <button
             style={styles.button}
             onClick={resetGame}
           >
             🔄 Restart
-          </button>
+          </button> */}
 
           <button
             style={styles.button}
             onClick={() => navigate("/")}
           >
-            🏠 Home
+             Exit Game
           </button>
         </div>
       </div>
