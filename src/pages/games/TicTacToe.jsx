@@ -14,15 +14,27 @@ const TicTacToe = () => {
   const [winner, setWinner] = useState("");
   const [players, setPlayers] = useState(initialPlayers);
 
-  // player[0] = X, player[1] = O
-  const playerSymbol = players?.[0]?.username === username ? "X" : "O";
+  // Lock symbol once determined — prevents it from flipping if the players
+  // array is reordered after a disconnect/reconnect.
+  const [playerSymbol, setPlayerSymbol] = useState(() => {
+    if (initialPlayers?.length >= 2) {
+      return initialPlayers[0]?.username === username ? "X" : "O";
+    }
+    return null;
+  });
+
+  useEffect(() => {
+    if (!playerSymbol && players.length >= 2) {
+      setPlayerSymbol(players[0]?.username === username ? "X" : "O");
+    }
+  }, [players, username, playerSymbol]);
 
   const symbolToName = (sym) =>
     sym === "X"
       ? players[0]?.username || "Player 1"
       : players[1]?.username || "Player 2";
 
-  const isMyTurn = turn === playerSymbol && players.length >= 2 && !winner;
+  const isMyTurn = !!playerSymbol && turn === playerSymbol && players.length >= 2 && !winner;
 
   const statusText = () => {
     if (players.length < 2) return "⏳ Waiting for opponent to join...";
@@ -45,19 +57,21 @@ const TicTacToe = () => {
       if (res?.players?.length) setPlayers(res.players);
     });
 
-    socket.on("roomData", handleRoomData);
-    socket.on("room_update", (room) => {
+    const handleRoomUpdate = (room) => {
       if (room?.players) setPlayers(room.players);
-    });
+    };
+
+    socket.on("roomData", handleRoomData);
+    socket.on("room_update", handleRoomUpdate);
 
     return () => {
       socket.off("roomData", handleRoomData);
-      socket.off("room_update");
+      socket.off("room_update", handleRoomUpdate);
     };
   }, [roomId, username, handleRoomData]);
 
   const makeMove = (index) => {
-    if (!isMyTurn || board[index] !== "") return;
+    if (!isMyTurn || !playerSymbol || board[index] !== "") return;
     socket.emit("makeMove", { roomId, index, symbol: playerSymbol });
   };
 
