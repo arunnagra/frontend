@@ -68,13 +68,14 @@
   }
 
   .navbar div {
+    margin-left: 9%;
     justify-content: stretch;
   }
 
   .navbar a,
   .navbar button,
   .navbar .logout-btn {
-    flex: 1 1 100%;
+    /* flex: 1 1 100%; */
     text-align: center;
   }
 }
