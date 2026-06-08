@@ -13,9 +13,9 @@ function Leaderboard() {
   const [error, setError] = useState("");
   const prevDataRef = useRef("");
 
-  const fetchLeaderboard = useCallback(async () => {
+  const fetchLeaderboard = useCallback(async (showSpinner = false) => {
     try {
-      setLoading(true);
+      if (showSpinner) setLoading(true);
       setError("");
 
       const res = await axios.get(apiUrl("/api/leaderboard"));
@@ -29,23 +29,18 @@ function Leaderboard() {
       }
     } catch (err) {
       console.error(err);
-      setError(
-        "Failed to load leaderboard. Please try again."
-      );
+      setError("Failed to load leaderboard. Please try again.");
     } finally {
-      setLoading(false);
+      if (showSpinner) setLoading(false);
     }
   }, []);
 
   useEffect(() => {
     socket.connect();
-    fetchLeaderboard();
+    fetchLeaderboard(true);
 
-    const interval = setInterval(() => {
-      fetchLeaderboard();
-    }, 5000);
+    const interval = setInterval(() => fetchLeaderboard(), 30000);
 
-    
     const onMatchRecorded = () => fetchLeaderboard();
     socket.on("match_recorded", onMatchRecorded);
 

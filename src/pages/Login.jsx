@@ -4,8 +4,6 @@ import axios from "axios";
 
 import { AuthContext } from "../context/AuthContext";
 import { apiUrl } from "../config/api";
-import HomeButton from "../components/HomeButton";
-
 import "../styles/auth.css";
 
 function Login() {
@@ -61,7 +59,6 @@ function Login() {
 
   return (
     <div className="auth-container">
-      <HomeButton />
       <form
         className="auth-form"
         onSubmit={handleSubmit}

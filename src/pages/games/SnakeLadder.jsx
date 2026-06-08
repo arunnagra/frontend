@@ -6,11 +6,7 @@ import HomeButton from "../../components/HomeButton";
 const SNAKES = { 99: 54, 95: 72, 70: 55, 52: 42, 25: 2 };
 const LADDERS = { 4: 14, 9: 31, 20: 38, 28: 84, 40: 59, 63: 81, 71: 91 };
 
-// Build the visual board order (top-to-bottom, alternating row direction)
-// Row 9 from bottom (top visual): 91-100 → reversed: 100,99...91
-// Row 8 from bottom: 81-90 → normal: 81,82...90
-// ...
-// Row 0 (bottom visual): 1-10 → normal: 1,2...10
+
 const buildBoard = () => {
   const cells = [];
   for (let row = 9; row >= 0; row--) {

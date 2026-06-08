@@ -4,7 +4,6 @@ import { useNavigate, Link } from "react-router-dom";
 import toast from "react-hot-toast";
 import { AuthContext } from "../context/AuthContext";
 import { apiUrl } from "../config/api";
-import HomeButton from "../components/HomeButton";
 import "../styles/auth.css";
 
 function Register() {
@@ -162,7 +161,6 @@ function Register() {
 
   return (
     <div className="auth-container">
-      <HomeButton />
       {step === 1 ? (
         <form
           className="auth-form"
