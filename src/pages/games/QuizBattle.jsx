@@ -3,6 +3,8 @@ import { useLocation, useNavigate, useParams } from "react-router-dom";
 import socket from "../../socket/socket";
 import HomeButton from "../../components/HomeButton";
 
+const TOTAL_QUESTIONS = 10;
+
 const QUESTIONS = [
   { question: "What is the capital of India?", options: ["Mumbai", "Delhi", "Pune", "Chennai"], answer: "Delhi" },
   { question: "Which planet is known as the Red Planet?", options: ["Earth", "Mars", "Venus", "Jupiter"], answer: "Mars" },
@@ -14,7 +16,37 @@ const QUESTIONS = [
   { question: "What does CSS stand for?", options: ["Computer Style Sheets", "Cascading Style Sheets", "Creative Style System", "Colorful Style Sheets"], answer: "Cascading Style Sheets" },
   { question: "Which data structure uses LIFO?", options: ["Queue", "Stack", "Array", "Tree"], answer: "Stack" },
   { question: "What is the output of typeof null in JavaScript?", options: ["null", "undefined", "object", "string"], answer: "object" },
+  { question: "Which HTML element is used to define the title of a document?", options: ["<meta>", "<title>", "<header>", "<head>"], answer: "<title>" },
+  { question: "What does JSON stand for?", options: ["JavaScript Object Notation", "Java Simple Object Notation", "JavaScript Oriented Notation", "Java Serialized Object Notation"], answer: "JavaScript Object Notation" },
+  { question: "Which company created the Vue.js framework?", options: ["Google", "Facebook", "Evan You", "Microsoft"], answer: "Evan You" },
+  { question: "What is the value of 7 % 3 in JavaScript?", options: ["1", "2", "3", "0"], answer: "1" },
+  { question: "Which CSS property controls the text size?", options: ["font-style", "font-size", "text-size", "font-weight"], answer: "font-size" },
+  { question: "What is the primary purpose of Git?", options: ["Code formatting", "Version control", "Bug tracking", "Deployment"], answer: "Version control" },
+  { question: "In JavaScript, what is a promise?", options: ["A synchronous function", "A callback wrapper", "An object representing a future value", "A style guide"], answer: "An object representing a future value" },
+  { question: "Which of the following is not a JavaScript data type?", options: ["Boolean", "Undefined", "Character", "Symbol"], answer: "Character" },
+  { question: "What does SQL stand for?", options: ["Structured Query Language", "Simple Query Language", "Standard Question Language", "Sequential Query Language"], answer: "Structured Query Language" },
+  { question: "What tag is used to create a hyperlink in HTML?", options: ["<a>", "<link>", "<href>", "<url>"], answer: "<a>" },
+  { question: "What is the correct syntax to create an array in JavaScript?", options: ["var arr = {}", "var arr = []", "var arr = ()", "var arr = <>"], answer: "var arr = []" },
+  { question: "Which HTTP method is used to update a resource?", options: ["GET", "POST", "PUT", "DELETE"], answer: "PUT" },
+  { question: "Which keyword declares a constant in JavaScript?", options: ["let", "var", "const", "static"], answer: "const" },
+  { question: "Which React hook is used for state management?", options: ["useEffect", "useState", "useContext", "useMemo"], answer: "useState" },
+  { question: "Which of these is a primitive value in JavaScript?", options: ["Object", "Array", "String", "Date"], answer: "String" },
+  { question: "Which HTML attribute is used to define inline styles?", options: ["class", "style", "id", "css"], answer: "style" },
+  { question: "In CSS, how do you select an element with id 'main'?", options: ["#main", ".main", "main", "*main"], answer: "#main" },
+  { question: "Which operator is used to assign a value in JavaScript?", options: ["==", "=", "===", ":="], answer: "=" },
+  { question: "How do you write a comment in JavaScript?", options: ["<!-- comment -->", "// comment", "/* comment */", "Both B and C"], answer: "Both B and C" },
 ];
+
+const shuffleQuestions = (list) => {
+  const arr = [...list];
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+};
+
+const getRandomQuestions = (list, count) => shuffleQuestions(list).slice(0, count);
 
 export default function QuizBattle() {
   const { roomId } = useParams();
@@ -23,6 +55,7 @@ export default function QuizBattle() {
   const { username = "", players: initialPlayers = [] } = location.state || {};
 
   const [players, setPlayers]               = useState(initialPlayers);
+  const [questions, setQuestions]           = useState(() => getRandomQuestions(QUESTIONS, TOTAL_QUESTIONS));
   const [currentQ, setCurrentQ]             = useState(0);
   const [myScore, setMyScore]               = useState(0);
   const [opponentScore, setOpponentScore]   = useState(0);
@@ -31,6 +64,8 @@ export default function QuizBattle() {
   const [finished, setFinished]             = useState(false);
   const [opponentFinished, setOpponentFinished] = useState(false);
   const [gameOver, setGameOver]             = useState(null); // { winner, scores }
+  const [replayState, setReplayState]       = useState(null); // null | "waiting" | "invited"
+  const [inviterName, setInviterName]       = useState("");
   const [timeLeft, setTimeLeft]             = useState(15);
   const [transitioning, setTransitioning]   = useState(false); // brief fade between questions
 
@@ -40,6 +75,7 @@ export default function QuizBattle() {
   const opponent = players.find((p) => p.username !== username);
 
   const resetGame = () => {
+    setQuestions(getRandomQuestions(QUESTIONS, TOTAL_QUESTIONS));
     setCurrentQ(0);
     setMyScore(0);
     setOpponentScore(0);
@@ -48,6 +84,8 @@ export default function QuizBattle() {
     setFinished(false);
     setOpponentFinished(false);
     setGameOver(null);
+    setReplayState(null);
+    setInviterName("");
     setTimeLeft(15);
     setTransitioning(false);
     myFinalScore.current = 0;
@@ -89,9 +127,9 @@ export default function QuizBattle() {
       if (data.finalScore !== undefined) {
         setOpponentScore(data.finalScore);
         setOpponentFinished(true);
-        setOpponentQ(QUESTIONS.length);
+        setOpponentQ(questions.length);
       } else {
-        setOpponentQ((q) => Math.min(q + 1, QUESTIONS.length));
+        setOpponentQ((q) => Math.min(q + 1, questions.length));
         if (data.score !== undefined) setOpponentScore(data.score);
       }
     });
@@ -99,6 +137,17 @@ export default function QuizBattle() {
     socket.on("quiz_game_over", (data) => {
       clearInterval(timerRef.current);
       setGameOver(data);
+    });
+
+    socket.on("quiz_replay_invite", ({ invitedBy }) => {
+      if (!invitedBy) return;
+      if (invitedBy === username) {
+        setReplayState("waiting");
+        setInviterName(invitedBy);
+      } else {
+        setReplayState("invited");
+        setInviterName(invitedBy);
+      }
     });
 
     socket.on("room_update", (room) => {
@@ -110,6 +159,7 @@ export default function QuizBattle() {
       socket.off("quiz_start");
       socket.off("quiz_answer");
       socket.off("quiz_game_over");
+      socket.off("quiz_replay_invite");
       socket.off("room_update");
     };
   }, [roomId, username]);
@@ -126,12 +176,12 @@ export default function QuizBattle() {
 
     clearInterval(timerRef.current);
 
-    const correct = option === QUESTIONS[currentQ].answer;
+    const correct = option === questions[currentQ].answer;
     const newScore = correct ? myScore + 1 : myScore;
     setSelected(option ?? "");
     if (correct) setMyScore(newScore);
 
-    const isLast = currentQ === QUESTIONS.length - 1;
+    const isLast = currentQ === questions.length - 1;
 
     socket.emit("quiz_answer", {
       roomId,
@@ -157,11 +207,23 @@ export default function QuizBattle() {
     }
   };
 
+  const handlePlayAgain = () => {
+    if (replayState === "waiting") return;
+    setReplayState("waiting");
+    socket.emit("quiz_replay_request", { roomId, username });
+  };
+
+  const handleAcceptPlayAgain = () => {
+    if (replayState !== "invited") return;
+    setReplayState("waiting");
+    socket.emit("quiz_replay_accept", { roomId });
+  };
+
   // ── Waiting for results ────────────────────────────────────────────────────
   if (finished && !gameOver) {
-    const myPct  = Math.round((myFinalScore.current / QUESTIONS.length) * 100);
+    const myPct  = Math.round((myFinalScore.current / questions.length) * 100);
     const oppPct = opponentFinished
-      ? Math.round((opponentScore / QUESTIONS.length) * 100)
+      ? Math.round((opponentScore / questions.length) * 100)
       : null;
 
     return (
@@ -175,7 +237,7 @@ export default function QuizBattle() {
           <div style={s.waitRow}>
             <div style={s.waitPlayer}>
               <div style={s.waitName}>{username} <span style={s.youTag}>you</span></div>
-              <div style={s.waitScore}>{myFinalScore.current}/{QUESTIONS.length}</div>
+              <div style={s.waitScore}>{myFinalScore.current}/{questions.length}</div>
               <div style={s.waitPct}>{myPct}% accuracy</div>
             </div>
             <div style={s.waitDivider}>VS</div>
@@ -183,7 +245,7 @@ export default function QuizBattle() {
               <div style={s.waitName}>{opponent?.username || "Opponent"}</div>
               {opponentFinished ? (
                 <>
-                  <div style={s.waitScore}>{opponentScore}/{QUESTIONS.length}</div>
+                  <div style={s.waitScore}>{opponentScore}/{questions.length}</div>
                   <div style={s.waitPct}>{oppPct}% accuracy</div>
                 </>
               ) : (
@@ -208,8 +270,8 @@ export default function QuizBattle() {
     const scores = Object.entries(gameOver.scores);
     const myFin  = gameOver.scores?.[username]            ?? 0;
     const oppFin = gameOver.scores?.[opponent?.username]  ?? 0;
-    const myAcc  = Math.round((myFin  / QUESTIONS.length) * 100);
-    const oppAcc = Math.round((oppFin / QUESTIONS.length) * 100);
+    const myAcc  = Math.round((myFin  / questions.length) * 100);
+    const oppAcc = Math.round((oppFin / questions.length) * 100);
 
     return (
       <div style={s.page}>
@@ -235,7 +297,7 @@ export default function QuizBattle() {
                   {name} {name === username ? <span style={s.youTag}>you</span> : ""}
                 </span>
                 <span style={{ fontWeight: 700 }}>
-                  {sc}/{QUESTIONS.length}
+                  {sc}/{questions.length}
                 </span>
               </div>
             ))}
@@ -255,6 +317,27 @@ export default function QuizBattle() {
             </div>
           </div>
 
+          {replayState === "invited" ? (
+            <div style={s.replayInviteCard}>
+              <div style={s.replayInviteText}>
+                🎮 <strong>{inviterName}</strong> wants to play again.
+              </div>
+              <button style={s.replayBtn} onClick={handleAcceptPlayAgain}>
+                Accept
+              </button>
+            </div>
+          ) : replayState === "waiting" ? (
+            <div style={s.replayInviteCard}>
+              <div style={s.replayInviteText}>
+                Waiting for your opponent to accept the rematch…
+              </div>
+            </div>
+          ) : (
+            <button style={s.replayBtn} onClick={handlePlayAgain}>
+              🔄 Play Again
+            </button>
+          )}
+
           <button style={s.homeBtn} onClick={() => navigate("/")}>
             Back to Home
           </button>
@@ -264,7 +347,7 @@ export default function QuizBattle() {
   }
 
   // ── Active game ────────────────────────────────────────────────────────────
-  const q        = QUESTIONS[currentQ];
+  const q        = questions[currentQ];
   const timerPct = (timeLeft / 15) * 100;
 
   return (
@@ -276,13 +359,13 @@ export default function QuizBattle() {
         <div style={s.playerSide}>
           <div style={s.pName}>{username} <span style={s.youTag}>(you)</span></div>
           <div style={s.pScore}>{myScore} pts</div>
-          <div style={s.pProgress}>{currentQ}/{QUESTIONS.length} answered</div>
+          <div style={s.pProgress}>{currentQ}/{questions.length} answered</div>
         </div>
         <div style={s.vsTag}>VS</div>
         <div style={{ ...s.playerSide, textAlign: "right" }}>
           <div style={s.pName}>{opponent?.username || "Opponent"}</div>
           <div style={s.pScore}>{opponentScore} pts</div>
-          <div style={s.pProgress}>{opponentQ}/{QUESTIONS.length} answered</div>
+          <div style={s.pProgress}>{opponentQ}/{questions.length} answered</div>
         </div>
       </div>
 
@@ -298,7 +381,7 @@ export default function QuizBattle() {
 
       {/* Question card */}
       <div style={{ ...s.quizCard, opacity: transitioning ? 0 : 1, transition: "opacity 0.3s ease" }}>
-        <div style={s.qNum}>Question {currentQ + 1} of {QUESTIONS.length}</div>
+        <div style={s.qNum}>Question {currentQ + 1} of {questions.length}</div>
         <h2 style={s.qText}>{q.question}</h2>
         <div style={s.options}>
           {q.options.map((opt, i) => {
@@ -483,6 +566,31 @@ const s = {
   },
 
   // Home button
+  replayInviteCard: {
+    marginBottom: "18px",
+    padding: "18px 20px",
+    background: "rgba(59,130,246,0.15)",
+    border: "1px solid rgba(59,130,246,0.3)",
+    borderRadius: "16px",
+  },
+  replayInviteText: {
+    fontSize: "15px",
+    fontWeight: 700,
+    color: "#e2e8f0",
+    marginBottom: "12px",
+  },
+  replayBtn: {
+    marginbottom: "12px",
+    width: "100%",
+    padding: "14px",
+    border: "none",
+    borderRadius: "12px",
+    background: "linear-gradient(135deg,#22c55e,#10b981)",
+    color: "#fff",
+    fontSize: "16px",
+    fontWeight: 700,
+    cursor: "pointer",
+  },
   homeBtn: {
     width: "100%",
     padding: "14px",
