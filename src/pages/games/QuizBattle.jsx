@@ -210,13 +210,19 @@ export default function QuizBattle() {
   const handlePlayAgain = () => {
     if (replayState === "waiting") return;
     setReplayState("waiting");
+    console.log("[QuizBattle] emit quiz_replay_request", { roomId, username });
     socket.emit("quiz_replay_request", { roomId, username });
+    // also emit generic replay_request as a fallback
+    socket.emit("replay_request", { roomId, username });
   };
 
   const handleAcceptPlayAgain = () => {
     if (replayState !== "invited") return;
     setReplayState("waiting");
+    console.log("[QuizBattle] emit quiz_replay_accept", { roomId });
     socket.emit("quiz_replay_accept", { roomId });
+    // also emit generic replay_accept as fallback
+    socket.emit("replay_accept", { roomId });
   };
 
   // ── Waiting for results ────────────────────────────────────────────────────
@@ -580,7 +586,7 @@ const s = {
     marginBottom: "12px",
   },
   replayBtn: {
-    marginbottom: "12px",
+    marginBottom: "15px",
     width: "100%",
     padding: "14px",
     border: "none",
@@ -592,6 +598,7 @@ const s = {
     cursor: "pointer",
   },
   homeBtn: {
+    // marginTop: "12px",
     width: "100%",
     padding: "14px",
     border: "none",

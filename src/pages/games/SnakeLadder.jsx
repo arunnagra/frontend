@@ -33,6 +33,8 @@ export default function SnakeLadder() {
   const [dice, setDice] = useState(null);
   const [lastMove, setLastMove] = useState(null); // { username, from, to, event }
   const [gameOver, setGameOver] = useState(null); // { winner }
+  const [replayState, setReplayState] = useState(null); // null | "waiting" | "invited" | "accepted"
+  const [inviterName, setInviterName] = useState("");
   const [rolling, setRolling] = useState(false);
 
   const isMyTurn = currentPlayer === username && !gameOver;
@@ -48,6 +50,12 @@ export default function SnakeLadder() {
       if (data?.players?.length) setPlayers(data.players);
       setPositions(data.positions || {});
       setCurrentPlayer(data.currentPlayer || "");
+      setGameOver(null);
+      setLastMove(null);
+      setDice(null);
+      setReplayState(null);
+      setInviterName("");
+      setRolling(false);
     });
 
     socket.on("snake_roll", (data) => {
@@ -57,11 +65,30 @@ export default function SnakeLadder() {
       setCurrentPlayer(data.currentPlayer || "");
       setRolling(false);
 
-      // Detect snake or ladder event
+      const fromPosition = data.from ?? Math.max((data.position || 1) - (data.dice || 0), 1);
+      const rawPosition = data.rawPosition ?? data.position;
+      const isSnakeHit = !!SNAKES[data.position];
+      const isLadderHit = !!LADDERS[rawPosition];
+
       let event = null;
-      if (SNAKES[data.position]) event = `🐍 Snake! ${data.username} slides down`;
-      else if (LADDERS[data.rawPosition || 0]) event = `🪜 Ladder! ${data.username} climbs up`;
-      setLastMove({ username: data.username, position: data.position, dice: data.dice, event });
+      if (isSnakeHit) {
+        event = `🐍 Snake! ${data.username} slid from ${rawPosition} down to ${data.position}.`;
+      } else if (isLadderHit) {
+        event = `🪜 Ladder! ${data.username} climbed from ${rawPosition} up to ${data.position}.`;
+      } else if (data.position === fromPosition) {
+        event = `🎲 ${data.username} rolled ${data.dice} but stayed on square ${data.position}.`;
+      } else {
+        event = `🎲 ${data.username} rolled ${data.dice} and moved from ${fromPosition} to ${data.position}.`;
+      }
+
+      setLastMove({
+        username: data.username,
+        from: fromPosition,
+        rawPosition,
+        position: data.position,
+        dice: data.dice,
+        event,
+      });
     });
 
     socket.on("snake_game_over", (data) => {
@@ -73,11 +100,39 @@ export default function SnakeLadder() {
       if (room?.players) setPlayers(room.players);
     });
 
+    const handleReplayInvite = ({ invitedBy }) => {
+      if (!invitedBy) return;
+      setInviterName(invitedBy);
+      if (invitedBy === username) {
+        setReplayState("waiting");
+      } else {
+        setReplayState("invited");
+      }
+    };
+
+    const handleReplayStarted = () => {
+      setReplayState(null);
+      setGameOver(null);
+      setLastMove(null);
+      setDice(null);
+      setInviterName("");
+      setRolling(false);
+    };
+
+    socket.on("replay_invite", handleReplayInvite);
+    socket.on("snake_replay_invite", handleReplayInvite);
+    socket.on("snake_replay_started", handleReplayStarted);
+    socket.on("replay_started", handleReplayStarted);
+
     return () => {
       socket.off("snake_game_start");
       socket.off("snake_roll");
       socket.off("snake_game_over");
       socket.off("room_update");
+      socket.off("replay_invite", handleReplayInvite);
+      socket.off("snake_replay_invite", handleReplayInvite);
+      socket.off("snake_replay_started", handleReplayStarted);
+      socket.off("replay_started", handleReplayStarted);
     };
   }, [roomId, username]);
 
@@ -99,10 +154,26 @@ export default function SnakeLadder() {
     socket.emit("snake_roll", {
       roomId,
       dice: rolled,
+      from: myPos,
       position: newPos,
       rawPosition,
       username,
     });
+  };
+
+  const handlePlayAgain = () => {
+    if (replayState === "waiting") return;
+    setReplayState("waiting");
+    setInviterName(username);
+    socket.emit("snake_replay_request", { roomId, username });
+    socket.emit("replay_request", { roomId, username });
+  };
+
+  const handleAcceptPlayAgain = () => {
+    if (replayState !== "invited") return;
+    setReplayState("accepted");
+    socket.emit("snake_replay_accept", { roomId });
+    socket.emit("replay_accept", { roomId });
   };
 
   const getPlayerEmoji = (pUsername) => {
@@ -125,6 +196,34 @@ export default function SnakeLadder() {
               </div>
             ))}
           </div>
+
+          {replayState === "invited" ? (
+            <div style={s.replayInviteCard}>
+              <div style={s.replayInviteText}>
+                🎮 <strong>{inviterName}</strong> wants to play again.
+              </div>
+              <button style={s.replayBtn} onClick={handleAcceptPlayAgain}>
+                Accept Play Again
+              </button>
+            </div>
+          ) : replayState === "accepted" ? (
+            <div style={s.replayInviteCard}>
+              <div style={s.replayInviteText}>
+                ✅ Rematch accepted! Starting the game…
+              </div>
+            </div>
+          ) : replayState === "waiting" ? (
+            <div style={s.replayInviteCard}>
+              <div style={s.replayInviteText}>
+                Waiting for your opponent to accept the rematch…
+              </div>
+            </div>
+          ) : (
+            <button style={s.replayBtn} onClick={handlePlayAgain}>
+              🔄 Play Again
+            </button>
+          )}
+
           <button style={s.homeBtn} onClick={() => navigate("/")}>
             Back to Home
           </button>
@@ -176,9 +275,7 @@ export default function SnakeLadder() {
       {/* Last move */}
       {lastMove && (
         <div style={s.lastMove}>
-          {lastMove.event
-            ? lastMove.event
-            : `${lastMove.username} rolled ${lastMove.dice} → square ${lastMove.position}`}
+          {lastMove.event ?? `${lastMove.username} rolled ${lastMove.dice} and landed on square ${lastMove.position}.`}
         </div>
       )}
 
@@ -213,8 +310,18 @@ export default function SnakeLadder() {
                 }}
               >
                 <span style={s.cellNum}>{cell}</span>
-                {isSnake && <span style={s.cellIcon}>🐍</span>}
-                {isLadder && <span style={s.cellIcon}>🪜</span>}
+                {isSnake && (
+                  <>
+                    <span style={s.cellIcon}>🐍</span>
+                    <span style={s.cellLabel}>to {SNAKES[cell]}</span>
+                  </>
+                )}
+                {isLadder && (
+                  <>
+                    <span style={s.cellIcon}>🪜</span>
+                    <span style={s.cellLabel}>to {LADDERS[cell]}</span>
+                  </>
+                )}
                 {playersHere.length > 0 && (
                   <div style={s.piecesRow}>
                     {playersHere.map((p) => (
@@ -230,11 +337,30 @@ export default function SnakeLadder() {
 
       {/* Legend */}
       <div style={s.legend}>
-        <span>🐍 Snake (slide down)</span>
-        <span>🪜 Ladder (climb up)</span>
-        {players.map((p, i) => (
-          <span key={i}>{PLAYER_EMOJIS[i]} {p.username}</span>
-        ))}
+        <div style={s.legendGroup}>
+          <div style={s.legendTitle}>🐍 Snakes</div>
+          <div style={s.legendList}>
+            {Object.entries(SNAKES).map(([start, end]) => (
+              <span key={start} style={s.legendItem}>{start} → {end}</span>
+            ))}
+          </div>
+        </div>
+        <div style={s.legendGroup}>
+          <div style={s.legendTitle}>🪜 Ladders</div>
+          <div style={s.legendList}>
+            {Object.entries(LADDERS).map(([start, end]) => (
+              <span key={start} style={s.legendItem}>{start} → {end}</span>
+            ))}
+          </div>
+        </div>
+        <div style={s.legendGroup}>
+          <div style={s.legendTitle}>Players</div>
+          <div style={s.legendList}>
+            {players.map((p, i) => (
+              <span key={i} style={s.legendItem}>{PLAYER_EMOJIS[i]} {p.username}</span>
+            ))}
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -359,8 +485,16 @@ const s = {
     lineHeight: 1,
   },
   cellIcon: {
-    fontSize: "clamp(10px,2.5vw,16px)",
+    fontSize: "clamp(12px,2.7vw,18px)",
     lineHeight: 1,
+  },
+  cellLabel: {
+    marginTop: "4px",
+    fontSize: "clamp(8px,1.8vw,11px)",
+    color: "#f8fafc",
+    fontWeight: 700,
+    textTransform: "uppercase",
+    letterSpacing: "0.04em",
   },
   snakeCell: { background: "rgba(239,68,68,0.22)", border: "1px solid rgba(239,68,68,0.3)" },
   ladderCell: { background: "rgba(34,197,94,0.22)", border: "1px solid rgba(34,197,94,0.3)" },
@@ -374,13 +508,64 @@ const s = {
     lineHeight: 1,
   },
   legend: {
-    display: "flex",
-    justifyContent: "center",
-    flexWrap: "wrap",
-    gap: "18px",
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fit,minmax(170px,1fr))",
+    gap: "12px",
     fontSize: "13px",
-    color: "#64748b",
+    color: "#cbd5e1",
     marginBottom: "20px",
+    padding: "18px",
+    background: "rgba(255,255,255,0.04)",
+    border: "1px solid rgba(255,255,255,0.08)",
+    borderRadius: "16px",
+  },
+  legendGroup: {
+    display: "grid",
+    gap: "8px",
+  },
+  legendTitle: {
+    fontSize: "13px",
+    fontWeight: 700,
+    color: "#f8fafc",
+  },
+  legendList: {
+    display: "grid",
+    gap: "6px",
+  },
+  legendItem: {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: "6px",
+    padding: "6px 10px",
+    borderRadius: "999px",
+    background: "rgba(255,255,255,0.06)",
+    color: "#e2e8f0",
+    fontSize: "12px",
+  },
+  replayInviteCard: {
+    marginBottom: "18px",
+    padding: "18px 20px",
+    background: "rgba(59,130,246,0.15)",
+    border: "1px solid rgba(59,130,246,0.3)",
+    borderRadius: "16px",
+  },
+  replayInviteText: {
+    fontSize: "15px",
+    fontWeight: 700,
+    color: "#e2e8f0",
+    marginBottom: "12px",
+  },
+  replayBtn: {
+    marginBottom: "15px",
+    width: "100%",
+    padding: "14px",
+    border: "none",
+    borderRadius: "12px",
+    background: "linear-gradient(135deg,#22c55e,#10b981)",
+    color: "#fff",
+    fontSize: "16px",
+    fontWeight: 700,
+    cursor: "pointer",
   },
   // Result
   resultCard: {

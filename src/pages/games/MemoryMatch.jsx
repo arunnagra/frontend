@@ -7,7 +7,8 @@ export default function MemoryMatch() {
   const { roomId } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
-  const { username = "", players: initialPlayers = [] } = location.state || {};
+  const { username: locUsername = "", players: initialPlayers = [] } = location.state || {};
+  const username = locUsername || localStorage.getItem("gs_username") || "";
 
   const [cards, setCards] = useState([]);
   const [flippedIndices, setFlippedIndices] = useState([]);
@@ -15,8 +16,12 @@ export default function MemoryMatch() {
   const [scores, setScores] = useState({});
   const [currentPlayer, setCurrentPlayer] = useState("");
   const [players, setPlayers] = useState(initialPlayers);
-  const [gameOver, setGameOver] = useState(null); // { winner, scores }
-  const [isWaiting, setIsWaiting] = useState(false); // waiting for server eval
+  const [gameOver, setGameOver] = useState(null);
+  const [isWaiting, setIsWaiting] = useState(false);
+  const [replayState, setReplayState] = useState(null);
+  const [inviterName, setInviterName] = useState("");
+  const [replayHover, setReplayHover] = useState(false);
+  const [homeHover, setHomeHover] = useState(false);
 
   const isMyTurn = currentPlayer === username && !gameOver;
 
@@ -27,15 +32,18 @@ export default function MemoryMatch() {
       if (res?.players?.length) setPlayers(res.players);
     });
 
-    // Server sends authoritative card layout
     socket.on("memory_game_start", (data) => {
       setCards(data.cards || []);
       setCurrentPlayer(data.currentPlayer || "");
       setScores(data.scores || {});
-      if (data.matched?.length) setMatchedIndices(data.matched);
+      if (data.players?.length) setPlayers(data.players);
+      setMatchedIndices(data.matched || []);
+      setFlippedIndices([]);
+      setGameOver(null);
+      setReplayState(null);
+      setInviterName("");
     });
 
-    // A card was flipped (by either player)
     socket.on("memory_flip", (data) => {
       setFlippedIndices((prev) => {
         if (prev.includes(data.index)) return prev;
@@ -45,15 +53,28 @@ export default function MemoryMatch() {
       });
     });
 
-    // Match confirmed — cards stay revealed
     socket.on("memory_match_found", (data) => {
       setMatchedIndices((prev) => [...prev, ...data.indices]);
       setFlippedIndices([]);
       setIsWaiting(false);
-      setScores((prev) => ({ ...prev, [data.username]: data.score }));
+      setScores((prev) => {
+        // FIX: If the server sends the full updated scores object, use it directly
+        if (data.scores) return { ...prev, ...data.scores };
+        
+        const next = { ...prev };
+        (players || initialPlayers || []).forEach((p) => {
+          const name = p?.username || p;
+          if (name && next[name] === undefined) next[name] = 0;
+        });
+        
+        // FIX: Ensure data.username actually exists before assigning to prevent setting an 'undefined' key
+        if (data.username && data.score !== undefined) {
+          next[data.username] = data.score;
+        }
+        return next;
+      });
     });
 
-    // No match — flip back
     socket.on("memory_no_match", (data) => {
       setTimeout(() => {
         setFlippedIndices([]);
@@ -61,20 +82,29 @@ export default function MemoryMatch() {
       }, 700);
     });
 
-    // Turn changed
     socket.on("memory_turn_update", (data) => {
       setCurrentPlayer(data.currentPlayer || "");
       if (data.scores) setScores(data.scores);
     });
 
-    // Game finished
     socket.on("memory_game_over", (data) => {
       setGameOver(data);
     });
 
+    const handleReplayInvite = ({ invitedBy }) => {
+      if (invitedBy === username) {
+        setReplayState("waiting");
+      } else {
+        setInviterName(invitedBy);
+        setReplayState("invited");
+      }
+    };
+
     socket.on("room_update", (room) => {
       if (room?.players) setPlayers(room.players);
     });
+
+    socket.on("memory_replay_invite", handleReplayInvite);
 
     return () => {
       socket.off("memory_game_start");
@@ -84,6 +114,7 @@ export default function MemoryMatch() {
       socket.off("memory_turn_update");
       socket.off("memory_game_over");
       socket.off("room_update");
+      socket.off("memory_replay_invite", handleReplayInvite);
     };
   }, [roomId, username]);
 
@@ -97,21 +128,33 @@ export default function MemoryMatch() {
     socket.emit("memory_flip", { roomId, card: { index }, username });
   };
 
+  const handlePlayAgain = () => {
+    setReplayState("waiting");
+    console.log("[MemoryMatch] emit memory_replay_request", { roomId, username });
+    socket.emit("memory_replay_request", { roomId, username });
+  };
+
+  const handleAcceptReplay = () => {
+    console.log("[MemoryMatch] emit memory_replay_accept", { roomId });
+    socket.emit("memory_replay_accept", { roomId });
+  };
+
   const isCardVisible = (index) =>
     flippedIndices.includes(index) || matchedIndices.includes(index);
 
   const isMatched = (index) => matchedIndices.includes(index);
 
   if (gameOver) {
+    const isDraw = !gameOver.winner || gameOver.winner === "DRAW";
     const winnerName = gameOver.winner;
     const iWon = winnerName === username;
     return (
       <div style={s.page}>
         <HomeButton />
         <div style={s.resultCard}>
-          <div style={s.resultIcon}>{iWon ? "🏆" : "🥈"}</div>
+          <div style={s.resultIcon}>{isDraw ? "🤝" : iWon ? "🏆" : "🥈"}</div>
           <h1 style={s.resultTitle}>
-            {iWon ? "You Win!" : `${winnerName} Wins!`}
+            {isDraw ? "It's a tie!" : iWon ? "You Win!" : `${winnerName} Wins!`}
           </h1>
           <div style={s.scoreList}>
             {Object.entries(gameOver.scores).map(([name, sc]) => (
@@ -121,7 +164,47 @@ export default function MemoryMatch() {
               </div>
             ))}
           </div>
-          <button style={s.homeBtn} onClick={() => navigate("/")}>
+          <div style={s.resultFooter}>
+            {replayState === "invited" ? (
+              <button 
+                type="button"
+                style={{
+                  ...s.replayBtn,
+                  ...(replayHover && { transform: "scale(1.02)", boxShadow: "0 6px 16px rgba(34, 197, 94, 0.5)" })
+                }}
+                onClick={handleAcceptReplay}
+                onMouseEnter={() => setReplayHover(true)}
+                onMouseLeave={() => setReplayHover(false)}
+              >
+                ✅ Accept Replay
+              </button>
+            ) : replayState === "waiting" ? (
+              <span style={s.waitingText}>⏳ Waiting for opponent to accept…</span>
+            ) : (
+              <button 
+                type="button"
+                style={{
+                  ...s.replayBtn,
+                  ...(replayHover && { transform: "scale(1.02)", boxShadow: "0 6px 16px rgba(34, 197, 94, 0.5)" })
+                }}
+                onClick={handlePlayAgain}
+                onMouseEnter={() => setReplayHover(true)}
+                onMouseLeave={() => setReplayHover(false)}
+              >
+                🔄 Play Again
+              </button>
+            )}
+          </div>
+          <button 
+            type="button"
+            style={{
+              ...s.homeBtn,
+              ...(homeHover && { transform: "scale(1.02)", boxShadow: "0 6px 16px rgba(59, 130, 246, 0.5)" })
+            }}
+            onClick={() => navigate("/")}
+            onMouseEnter={() => setHomeHover(true)}
+            onMouseLeave={() => setHomeHover(false)}
+          >
             Back to Home
           </button>
         </div>
@@ -142,14 +225,18 @@ export default function MemoryMatch() {
       {/* Scoreboard */}
       <div style={s.scoreboard}>
         {players.map((p, i) => {
-          const isCurrent = currentPlayer === p.username;
+          // FIX: Safely parse pName so it doesn't return undefined if 'p' is sent as a string by the server. 
+          const pName = p?.username || p; 
+          const isCurrent = currentPlayer === pName;
+          
           return (
             <div key={i} style={{ ...s.scoreBox, ...(isCurrent ? s.activeScore : {}) }}>
               <div style={s.scoreName}>
-                {p.username}
-                {p.username === username && <span style={s.youTag}> (you)</span>}
+                {pName}
+                {pName === username && <span style={s.youTag}> (you)</span>}
               </div>
-              <div style={s.scoreNum}>{scores[p.username] ?? 0} pairs</div>
+              {/* Now correctly looks up the user's score using the safely parsed name */}
+              <div style={s.scoreNum}>{scores[pName] ?? 0} pairs</div>
               {isCurrent && <div style={s.turnDot} />}
             </div>
           );
@@ -293,7 +380,6 @@ const s = {
     fontSize: "15px",
     color: "#64748b",
   },
-  // Game over screen
   resultCard: {
     width: "min(100%,420px)",
     margin: "80px auto",
@@ -327,5 +413,31 @@ const s = {
     fontSize: "16px",
     fontWeight: 700,
     cursor: "pointer",
+    transition: "all 0.3s ease",
+    transform: "scale(1)",
+  },
+  replayBtn: {
+    width: "100%",
+    padding: "14px",
+    border: "none",
+    borderRadius: "12px",
+    background: "linear-gradient(135deg,#22c55e,#10b981)",
+    color: "#fff",
+    fontSize: "16px",
+    fontWeight: 700,
+    cursor: "pointer",
+    marginBottom: "12px",
+    transition: "all 0.3s ease",
+    boxShadow: "0 4px 12px rgba(34, 197, 94, 0.3)",
+    transform: "scale(1)",
+  },
+  waitingText: {
+    display: "block",
+    color: "#facc15",
+    fontWeight: 700,
+    marginBottom: "12px",
+  },
+  resultFooter: {
+    marginBottom: "20px",
   },
 };
