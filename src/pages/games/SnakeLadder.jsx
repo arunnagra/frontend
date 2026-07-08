@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import socket from "../../socket/socket";
 import HomeButton from "../../components/HomeButton";
+import RoomChat from "../../components/RoomChat";
 
 const SNAKES = { 99: 54, 95: 72, 70: 55, 52: 42, 25: 2 };
 const LADDERS = { 4: 14, 9: 31, 20: 38, 28: 84, 40: 59, 63: 81, 71: 91 };
@@ -25,21 +26,52 @@ export default function SnakeLadder() {
   const { roomId } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
-  const { username = "", players: initialPlayers = [] } = location.state || {};
+  const { username: initialUsername = "", players: initialPlayers = [] } = location.state || {};
+  const username = initialUsername || localStorage.getItem("gs_username") || "You";
+  const isSinglePlayer = roomId === "SINGLE" || location.state?.singlePlayer === true;
+  const isAIGame = roomId === "AI" || location.state?.ai === true;
+  const isLocalMode = isSinglePlayer || isAIGame;
 
-  const [players, setPlayers] = useState(initialPlayers);
-  const [positions, setPositions] = useState({});
-  const [currentPlayer, setCurrentPlayer] = useState("");
+  const [players, setPlayers] = useState(() =>
+    isLocalMode
+      ? isAIGame
+        ? [{ username }, { username: "Computer" }]
+        : [{ username }]
+      : initialPlayers
+  );
+  const [chat, setChat] = useState([]);
+  const [typingUsers, setTypingUsers] = useState([]);
+  const [positions, setPositions] = useState(() =>
+    isLocalMode
+      ? { [username]: 1, ...(isAIGame ? { Computer: 1 } : {}) }
+      : {}
+  );
+  const [currentPlayer, setCurrentPlayer] = useState(() => (isLocalMode ? username : ""));
   const [dice, setDice] = useState(null);
   const [lastMove, setLastMove] = useState(null); // { username, from, to, event }
   const [gameOver, setGameOver] = useState(null); // { winner }
   const [replayState, setReplayState] = useState(null); // null | "waiting" | "invited" | "accepted"
   const [inviterName, setInviterName] = useState("");
   const [rolling, setRolling] = useState(false);
+  const [aiThinking, setAIThinking] = useState(false);
 
   const isMyTurn = currentPlayer === username && !gameOver;
 
   useEffect(() => {
+    if (isLocalMode) {
+      setPlayers(isAIGame ? [{ username }, { username: "Computer" }] : [{ username }]);
+      setPositions({ [username]: 1, ...(isAIGame ? { Computer: 1 } : {}) });
+      setCurrentPlayer(username);
+      setGameOver(null);
+      setLastMove(null);
+      setDice(null);
+      setReplayState(null);
+      setInviterName("");
+      setRolling(false);
+      setAIThinking(false);
+      return;
+    }
+
     if (!socket.connected) socket.connect();
 
     socket.emit("join_room", { roomId, username }, (res) => {
@@ -98,6 +130,18 @@ export default function SnakeLadder() {
 
     socket.on("room_update", (room) => {
       if (room?.players) setPlayers(room.players);
+      if (room?.chat) setChat(room.chat);
+    });
+    socket.on("chat_update", (payload) => {
+      if (payload?.chat) setChat(payload.chat);
+    });
+    socket.on("typing", ({ username: typingName }) => {
+      if (!typingName || typingName === username) return;
+      setTypingUsers((prev) => (prev.includes(typingName) ? prev : [...prev, typingName]));
+    });
+    socket.on("stop_typing", ({ username: typingName }) => {
+      if (!typingName) return;
+      setTypingUsers((prev) => prev.filter((name) => name !== typingName));
     });
 
     const handleReplayInvite = ({ invitedBy }) => {
@@ -129,39 +173,114 @@ export default function SnakeLadder() {
       socket.off("snake_roll");
       socket.off("snake_game_over");
       socket.off("room_update");
+      socket.off("chat_update");
+      socket.off("typing");
+      socket.off("stop_typing");
       socket.off("replay_invite", handleReplayInvite);
       socket.off("snake_replay_invite", handleReplayInvite);
       socket.off("snake_replay_started", handleReplayStarted);
       socket.off("replay_started", handleReplayStarted);
     };
-  }, [roomId, username]);
+  }, [roomId, username, isAIGame, isLocalMode, isSinglePlayer]);
 
-  const rollDice = () => {
-    if (!isMyTurn || rolling) return;
-    setRolling(true);
+  const applyLocalMove = (playerName, rolled, startPos) => {
+    let newPos = startPos + rolled;
+    if (newPos > 100) newPos = startPos;
 
-    const rolled = Math.floor(Math.random() * 6) + 1;
-    const myPos = positions[username] ?? 1;
-    let newPos = myPos + rolled;
-
-    if (newPos > 100) newPos = myPos;
     const rawPosition = newPos;
     if (LADDERS[newPos]) newPos = LADDERS[newPos];
     if (SNAKES[newPos]) newPos = SNAKES[newPos];
 
+    const nextPositions = { ...positions, [playerName]: newPos };
+    setPositions(nextPositions);
     setDice(rolled);
 
-    socket.emit("snake_roll", {
-      roomId,
-      dice: rolled,
-      from: myPos,
-      position: newPos,
+    const fromPosition = startPos;
+    const isSnakeHit = !!SNAKES[newPos];
+    const isLadderHit = !!LADDERS[rawPosition];
+
+    let event = null;
+    if (isSnakeHit) {
+      event = `🐍 Snake! ${playerName} slid from ${rawPosition} down to ${newPos}.`;
+    } else if (isLadderHit) {
+      event = `🪜 Ladder! ${playerName} climbed from ${rawPosition} up to ${newPos}.`;
+    } else if (newPos === fromPosition) {
+      event = `🎲 ${playerName} rolled ${rolled} but stayed on square ${newPos}.`;
+    } else {
+      event = `🎲 ${playerName} rolled ${rolled} and moved from ${fromPosition} to ${newPos}.`;
+    }
+
+    setLastMove({
+      username: playerName,
+      from: fromPosition,
       rawPosition,
-      username,
+      position: newPos,
+      dice: rolled,
+      event,
+    });
+
+    if (newPos === 100) {
+      setGameOver({ winner: playerName, positions: nextPositions });
+      setCurrentPlayer(playerName);
+    } else {
+      setCurrentPlayer(playerName === username ? "Computer" : username);
+    }
+
+    setRolling(false);
+    setAIThinking(false);
+  };
+
+  useEffect(() => {
+    if (!isLocalMode || !isAIGame || gameOver || currentPlayer !== "Computer") return;
+
+    setAIThinking(true);
+    const timer = window.setTimeout(() => {
+      const rolled = Math.floor(Math.random() * 6) + 1;
+      const startPos = positions["Computer"] ?? 1;
+      applyLocalMove("Computer", rolled, startPos);
+    }, 900);
+
+    return () => window.clearTimeout(timer);
+  }, [isLocalMode, isAIGame, gameOver, currentPlayer, positions, username]);
+
+  const rollDice = () => {
+    if (!isMyTurn || rolling || aiThinking) return;
+    setRolling(true);
+
+    const rolled = Math.floor(Math.random() * 6) + 1;
+    const myPos = positions[username] ?? 1;
+    applyLocalMove(username, rolled, myPos);
+  };
+
+  const sendChatMessage = (text) => {
+    socket.emit("send_chat_message", { roomId, username, text }, (ack) => {
+      if (ack?.error) console.warn("Chat failed:", ack.error);
     });
   };
 
+  const startTyping = () => {
+    socket.emit("typing", { roomId, username });
+  };
+
+  const stopTyping = () => {
+    socket.emit("stop_typing", { roomId, username });
+  };
+
   const handlePlayAgain = () => {
+    if (isLocalMode) {
+      setPlayers(isAIGame ? [{ username }, { username: "Computer" }] : [{ username }]);
+      setPositions({ [username]: 1, ...(isAIGame ? { Computer: 1 } : {}) });
+      setCurrentPlayer(username);
+      setGameOver(null);
+      setLastMove(null);
+      setDice(null);
+      setReplayState(null);
+      setInviterName("");
+      setRolling(false);
+      setAIThinking(false);
+      return;
+    }
+
     if (replayState === "waiting") return;
     setReplayState("waiting");
     setInviterName(username);
@@ -232,14 +351,22 @@ export default function SnakeLadder() {
     );
   }
 
+  const statusText = !currentPlayer
+    ? "⏳ Waiting for game to start..."
+    : isMyTurn
+    ? "🎲 Your turn — roll the dice!"
+    : isAIGame && currentPlayer === "Computer"
+    ? "🤖 Computer is thinking..."
+    : `⏳ ${currentPlayer}'s turn`;
+
   return (
     <div style={s.page}>
       <HomeButton />
 
       {/* Header */}
       <div style={s.header}>
-        <h1 style={s.title}>🐍 Snake & Ladder</h1>
-        <div style={s.roomTag}>Room: {roomId}</div>
+        <h1 style={s.title}>{isAIGame ? "🐍 Snake & Ladder VS AI" : "🐍 Snake & Ladder"}</h1>
+        <div style={s.roomTag}>{isLocalMode ? (isAIGame ? "Mode: VS AI" : "Mode: Solo") : `Room: ${roomId}`}</div>
       </div>
 
       {/* Players info */}
@@ -264,13 +391,7 @@ export default function SnakeLadder() {
       </div>
 
       {/* Status */}
-      <div style={s.status}>
-        {!currentPlayer
-          ? "⏳ Waiting for game to start..."
-          : isMyTurn
-          ? "🎲 Your turn — roll the dice!"
-          : `⏳ ${currentPlayer}'s turn`}
-      </div>
+      <div style={s.status}>{statusText}</div>
 
       {/* Last move */}
       {lastMove && (
@@ -283,11 +404,11 @@ export default function SnakeLadder() {
       <div style={s.diceRow}>
         {dice !== null && <div style={s.diceBox}>{["", "⚀", "⚁", "⚂", "⚃", "⚄", "⚅"][dice]}</div>}
         <button
-          style={{ ...s.rollBtn, opacity: isMyTurn && !rolling ? 1 : 0.45 }}
+          style={{ ...s.rollBtn, opacity: isMyTurn && !rolling && !aiThinking ? 1 : 0.45 }}
           onClick={rollDice}
-          disabled={!isMyTurn || rolling}
+          disabled={!isMyTurn || rolling || aiThinking}
         >
-          {rolling ? "Rolling..." : "🎲 Roll Dice"}
+          {rolling || aiThinking ? (isAIGame && currentPlayer === "Computer" ? "Computer is thinking..." : "Rolling...") : "🎲 Roll Dice"}
         </button>
       </div>
 
@@ -334,6 +455,18 @@ export default function SnakeLadder() {
           })}
         </div>
       </div>
+
+      {!isLocalMode && (
+        <RoomChat
+          roomId={roomId}
+          username={username}
+          chat={chat}
+          onSendMessage={sendChatMessage}
+          onTyping={startTyping}
+          onStopTyping={stopTyping}
+          typingUsers={typingUsers}
+        />
+      )}
 
       {/* Legend */}
       <div style={s.legend}>

@@ -229,31 +229,108 @@
 
 
 import React, { useCallback, useEffect, useMemo, useState } from "react"; // useMemo kept for winningLine
-import { useLocation } from "react-router-dom";
+import { useLocation, useParams } from "react-router-dom";
 import socket from "../../socket/socket";
 import HomeButton from "../../components/HomeButton";
+import RoomChat from "../../components/RoomChat";
+
+const winningPatterns = [
+  [0, 1, 2],
+  [3, 4, 5],
+  [6, 7, 8],
+  [0, 3, 6],
+  [1, 4, 7],
+  [2, 5, 8],
+  [0, 4, 8],
+  [2, 4, 6],
+];
+
+const getWinningLine = (board) => {
+  for (const [a, b, c] of winningPatterns) {
+    if (board[a] && board[a] === board[b] && board[a] === board[c]) {
+      return [a, b, c];
+    }
+  }
+  return [];
+};
+
+const findBestMove = (board, symbol) => {
+  for (let i = 0; i < board.length; i += 1) {
+    if (board[i] === "") {
+      const nextBoard = [...board];
+      nextBoard[i] = symbol;
+      if (getWinningLine(nextBoard).length) {
+        return i;
+      }
+    }
+  }
+  return null;
+};
+
+const getAIMove = (board, aiSymbol, playerSymbol) => {
+  const winMove = findBestMove(board, aiSymbol);
+  if (winMove !== null) return winMove;
+
+  const blockMove = findBestMove(board, playerSymbol);
+  if (blockMove !== null) return blockMove;
+
+  if (board[4] === "") return 4;
+
+  const corners = [0, 2, 6, 8].filter((index) => board[index] === "");
+  if (corners.length) {
+    return corners[Math.floor(Math.random() * corners.length)];
+  }
+
+  const edges = [1, 3, 5, 7].filter((index) => board[index] === "");
+  if (edges.length) {
+    return edges[Math.floor(Math.random() * edges.length)];
+  }
+
+  return board.findIndex((cell) => cell === "");
+};
 
 const TicTacToe = () => {
   const location = useLocation();
+  const { roomId: pathRoomId = "" } = useParams();
 
-  const {
-    roomId = "",
-    username = "",
-    players: initialPlayers = [],
-  } = location.state || {};
+  const roomId = location.state?.roomId || pathRoomId || "";
+  const initialUsername =
+    location.state?.username || localStorage.getItem("gs_username") || "You";
+  const username = initialUsername;
+  const initialPlayers = location.state?.players || [];
+
+  const isSinglePlayer =
+    roomId === "AI" || location.state?.singlePlayer === true;
 
   const [board, setBoard] = useState(Array(9).fill(""));
   const [turn, setTurn] = useState("X");
   const [winner, setWinner] = useState("");
-  const [players, setPlayers] = useState(initialPlayers);
+  const [players, setPlayers] = useState(() => {
+    if (isSinglePlayer) {
+      return [
+        { username: initialUsername },
+        { username: "Computer" },
+      ];
+    }
+    return initialPlayers;
+  });
+  const [chat, setChat] = useState([]);
+  const [typingUsers, setTypingUsers] = useState([]);
   const [replayState, setReplayState] = useState(null); // null | "waiting" | "invited"
   const [inviterName, setInviterName] = useState("");
   // Initialise from location.state as best-guess; overwritten by server callback.
   const [playerSymbol, setPlayerSymbol] = useState(() => {
-    if (!username || !initialPlayers.length) return null;
+    if (location.state?.playerSymbol) return location.state.playerSymbol;
+    if (isSinglePlayer) return "X";
+    if (!initialPlayers.length) return null;
     const idx = initialPlayers.findIndex((p) => p.username === username);
     return idx === 0 ? "X" : "O";
   });
+
+  const aiSymbol = useMemo(
+    () => (playerSymbol === "X" ? "O" : "X"),
+    [playerSymbol]
+  );
 
   const symbolToName = useCallback(
     (sym) =>
@@ -267,9 +344,12 @@ const TicTacToe = () => {
     !!playerSymbol && turn === playerSymbol && players.length >= 2 && !winner;
 
   const statusText = () => {
-    if (players.length < 2) return "⏳ Waiting for opponent to join...";
+    if (!isSinglePlayer && players.length < 2) return "⏳ Waiting for opponent to join...";
     if (winner === "DRAW") return "🤝 It's a Draw!";
     if (winner) return `🏆 ${symbolToName(winner)} Wins!`;
+    if (isSinglePlayer) {
+      return turn === playerSymbol ? "🎯 Your turn!" : "🤖 Computer is thinking...";
+    }
     return isMyTurn ? "🎯 Your turn!" : `⏳ ${symbolToName(turn)}'s turn`;
   };
 
@@ -277,6 +357,7 @@ const TicTacToe = () => {
     setBoard(data.board || Array(9).fill(""));
     setTurn(data.turn || "X");
     if (data.players?.length) setPlayers(data.players);
+    if (Array.isArray(data.chat)) setChat(data.chat.slice(-50));
     setWinner(data.winner || "");
     if (!data.winner && data.board?.every((c) => c === "")) {
       setReplayState(null);
@@ -284,8 +365,12 @@ const TicTacToe = () => {
     }
   }, []);
 
+  const addChatMessage = useCallback((message) => {
+    setChat((prev) => [...prev, message].slice(-50));
+  }, []);
+
   useEffect(() => {
-    if (!roomId) return;
+    if (!roomId || isSinglePlayer) return;
 
     const joinRoom = () => {
       socket.emit("join_room", { roomId, username }, (res) => {
@@ -297,6 +382,38 @@ const TicTacToe = () => {
 
     const handleRoomUpdate = (room) => {
       if (room?.players?.length >= 2) setPlayers(room.players);
+      if (room?.chat) setChat(room.chat);
+    };
+
+    const handleChatUpdate = (payload) => {
+      if (Array.isArray(payload?.chat)) {
+        setChat((prev) => {
+          const merged = [...prev, ...payload.chat].slice(-50);
+          const unique = [];
+          const seen = new Set();
+          merged.forEach((item) => {
+            const key = item?.id || `${item?.sender}-${item?.timestamp}-${item?.text}`;
+            if (!seen.has(key)) {
+              seen.add(key);
+              unique.push(item);
+            }
+          });
+          return unique.slice(-50);
+        });
+      }
+    };
+
+    const handleTyping = ({ username: typingName }) => {
+      if (!typingName || typingName === username) return;
+      setTypingUsers((prev) => {
+        if (prev.includes(typingName)) return prev;
+        return [...prev, typingName];
+      });
+    };
+
+    const handleStopTyping = ({ username: typingName }) => {
+      if (!typingName) return;
+      setTypingUsers((prev) => prev.filter((name) => name !== typingName));
     };
 
     const handleReplayInvite = ({ invitedBy }) => {
@@ -315,29 +432,127 @@ const TicTacToe = () => {
     socket.on("connect", joinRoom);
     socket.on("roomData", handleRoomData);
     socket.on("room_update", handleRoomUpdate);
+    socket.on("chat_update", handleChatUpdate);
+    socket.on("typing", handleTyping);
+    socket.on("stop_typing", handleStopTyping);
     socket.on("replay_invite", handleReplayInvite);
 
     return () => {
       socket.off("connect", joinRoom);
       socket.off("roomData", handleRoomData);
       socket.off("room_update", handleRoomUpdate);
+      socket.off("chat_update", handleChatUpdate);
+      socket.off("typing", handleTyping);
+      socket.off("stop_typing", handleStopTyping);
       socket.off("replay_invite", handleReplayInvite);
     };
   }, [roomId, username, handleRoomData]);
 
   const makeMove = (index) => {
+    if (board[index] !== "" || winner) return;
+    if (isSinglePlayer) {
+      if (turn !== playerSymbol) return;
+      setBoard((prev) => {
+        const next = [...prev];
+        next[index] = playerSymbol;
+        return next;
+      });
+      setTurn(aiSymbol);
+      return;
+    }
     if (!isMyTurn) return;
-    if (board[index] !== "") return;
     socket.emit("makeMove", { roomId, index, symbol: playerSymbol });
   };
 
+  const sendChatMessage = (text) => {
+    const trimmedText = text?.trim();
+    if (!trimmedText) return;
+
+    const optimisticMessage = {
+      id: `local-${Date.now()}`,
+      type: "user",
+      sender: username,
+      text: trimmedText,
+      timestamp: new Date().toISOString(),
+    };
+
+    addChatMessage(optimisticMessage);
+
+    socket.emit("send_chat_message", { roomId, username, text: trimmedText }, (ack) => {
+      if (ack?.error) {
+        setChat((prev) => prev.filter((message) => message.id !== optimisticMessage.id));
+        console.warn("Chat send failed:", ack.error);
+      }
+    });
+  };
+
+  const startTyping = () => {
+    socket.emit("typing", { roomId, username });
+  };
+
+  const stopTyping = () => {
+    socket.emit("stop_typing", { roomId, username });
+  };
+
   const handlePlayAgain = () => {
+    if (isSinglePlayer) {
+      setBoard(Array(9).fill(""));
+      setTurn(playerSymbol === "X" ? "X" : aiSymbol);
+      setWinner("");
+      setReplayState(null);
+      return;
+    }
     socket.emit("replay_request", { roomId, username });
   };
 
   const handleAcceptReplay = () => {
     socket.emit("replay_accept", { roomId });
   };
+
+  const evaluateBoardWinner = useCallback((boardState) => {
+    for (const [a, b, c] of winningPatterns) {
+      if (
+        boardState[a] &&
+        boardState[a] === boardState[b] &&
+        boardState[a] === boardState[c]
+      ) {
+        return boardState[a];
+      }
+    }
+    return null;
+  }, []);
+
+  useEffect(() => {
+    if (winner) return;
+
+    const result = evaluateBoardWinner(board);
+    if (result) {
+      setWinner(result);
+      return;
+    }
+
+    if (board.every((cell) => cell !== "")) {
+      setWinner("DRAW");
+    }
+  }, [board, winner, evaluateBoardWinner]);
+
+  useEffect(() => {
+    if (!isSinglePlayer || winner || turn !== aiSymbol) return;
+
+    const timer = window.setTimeout(() => {
+      const move = getAIMove(board, aiSymbol, playerSymbol);
+      if (move === null || move === undefined || move < 0) return;
+
+      setBoard((prev) => {
+        const next = [...prev];
+        next[move] = aiSymbol;
+        return next;
+      });
+      setTurn(playerSymbol);
+    }, 500);
+
+    return () => window.clearTimeout(timer);
+  }, [board, isSinglePlayer, winner, turn, aiSymbol, playerSymbol]);
 
   const winningLine = useMemo(() => {
     const patterns = [
@@ -442,6 +657,18 @@ const TicTacToe = () => {
           )}
         </div>
       </div>
+
+      {!isSinglePlayer && (
+        <RoomChat
+          roomId={roomId}
+          username={username}
+          chat={chat}
+          onSendMessage={sendChatMessage}
+          onTyping={startTyping}
+          onStopTyping={stopTyping}
+          typingUsers={typingUsers}
+        />
+      )}
     </div>
   );
 };

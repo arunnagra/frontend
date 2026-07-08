@@ -1,7 +1,17 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import socket from "../../socket/socket";
 import HomeButton from "../../components/HomeButton";
+import RoomChat from "../../components/RoomChat";
+
+const createShuffledCards = () => {
+  const icons = ["🍎", "🍌", "🍒", "🍇", "🍉", "🍓", "🥝", "🍍"];
+  const cards = icons.flatMap((icon, i) => [
+    { id: `${icon}-${i}-1`, icon },
+    { id: `${icon}-${i}-2`, icon },
+  ]);
+  return cards.sort(() => Math.random() - 0.5);
+};
 
 export default function MemoryMatch() {
   const { roomId } = useParams();
@@ -9,23 +19,57 @@ export default function MemoryMatch() {
   const location = useLocation();
   const { username: locUsername = "", players: initialPlayers = [] } = location.state || {};
   const username = locUsername || localStorage.getItem("gs_username") || "";
+  const isSinglePlayer = roomId === "SINGLE" || location.state?.singlePlayer === true;
+  const isAIGame = roomId === "AI" || location.state?.ai === true;
+  const isLocalMode = isSinglePlayer || isAIGame;
 
   const [cards, setCards] = useState([]);
   const [flippedIndices, setFlippedIndices] = useState([]);
   const [matchedIndices, setMatchedIndices] = useState([]);
   const [scores, setScores] = useState({});
   const [currentPlayer, setCurrentPlayer] = useState("");
-  const [players, setPlayers] = useState(initialPlayers);
+  const [players, setPlayers] = useState(() => {
+    if (isAIGame) {
+      return [{ username }, { username: "Computer" }];
+    }
+    if (isSinglePlayer) {
+      return [{ username }];
+    }
+    return initialPlayers;
+  });
+  const [chat, setChat] = useState([]);
+  const [typingUsers, setTypingUsers] = useState([]);
   const [gameOver, setGameOver] = useState(null);
   const [isWaiting, setIsWaiting] = useState(false);
   const [replayState, setReplayState] = useState(null);
   const [inviterName, setInviterName] = useState("");
   const [replayHover, setReplayHover] = useState(false);
   const [homeHover, setHomeHover] = useState(false);
+  const [aiThinking, setAIThinking] = useState(false);
 
   const isMyTurn = currentPlayer === username && !gameOver;
 
+  const initializeLocalGame = useCallback(() => {
+    const newCards = createShuffledCards();
+    setCards(newCards);
+    setFlippedIndices([]);
+    setMatchedIndices([]);
+    setScores(isAIGame ? { [username]: 0, Computer: 0 } : { [username]: 0 });
+    setCurrentPlayer(username);
+    setPlayers(isAIGame ? [{ username }, { username: "Computer" }] : [{ username }]);
+    setGameOver(null);
+    setReplayState(null);
+    setInviterName("");
+    setIsWaiting(false);
+    setAIThinking(false);
+  }, [isAIGame, username]);
+
   useEffect(() => {
+    if (isLocalMode) {
+      initializeLocalGame();
+      return;
+    }
+
     if (!socket.connected) socket.connect();
 
     socket.emit("join_room", { roomId, username }, (res) => {
@@ -57,22 +101,11 @@ export default function MemoryMatch() {
       setMatchedIndices((prev) => [...prev, ...data.indices]);
       setFlippedIndices([]);
       setIsWaiting(false);
-      setScores((prev) => {
-        // FIX: If the server sends the full updated scores object, use it directly
-        if (data.scores) return { ...prev, ...data.scores };
-        
-        const next = { ...prev };
-        (players || initialPlayers || []).forEach((p) => {
-          const name = p?.username || p;
-          if (name && next[name] === undefined) next[name] = 0;
-        });
-        
-        // FIX: Ensure data.username actually exists before assigning to prevent setting an 'undefined' key
-        if (data.username && data.score !== undefined) {
-          next[data.username] = data.score;
-        }
-        return next;
-      });
+      if (data.scores) {
+        setScores(data.scores);
+      } else if (data.username && data.score !== undefined) {
+        setScores((prev) => ({ ...prev, [data.username]: data.score }));
+      }
     });
 
     socket.on("memory_no_match", (data) => {
@@ -100,10 +133,27 @@ export default function MemoryMatch() {
       }
     };
 
+    const handleChatUpdate = (payload) => {
+      if (payload?.chat) setChat(payload.chat);
+    };
+
+    const handleTyping = ({ username: typingName }) => {
+      if (!typingName || typingName === username) return;
+      setTypingUsers((prev) => (prev.includes(typingName) ? prev : [...prev, typingName]));
+    };
+
+    const handleStopTyping = ({ username: typingName }) => {
+      if (!typingName) return;
+      setTypingUsers((prev) => prev.filter((name) => name !== typingName));
+    };
+
     socket.on("room_update", (room) => {
       if (room?.players) setPlayers(room.players);
+      if (room?.chat) setChat(room.chat);
     });
-
+    socket.on("chat_update", handleChatUpdate);
+    socket.on("typing", handleTyping);
+    socket.on("stop_typing", handleStopTyping);
     socket.on("memory_replay_invite", handleReplayInvite);
 
     return () => {
@@ -114,9 +164,21 @@ export default function MemoryMatch() {
       socket.off("memory_turn_update");
       socket.off("memory_game_over");
       socket.off("room_update");
+      socket.off("chat_update", handleChatUpdate);
+      socket.off("typing", handleTyping);
+      socket.off("stop_typing", handleStopTyping);
       socket.off("memory_replay_invite", handleReplayInvite);
     };
-  }, [roomId, username]);
+  }, [roomId, username, isLocalMode, initializeLocalGame]);
+
+  const handleLocalFlip = (index) => {
+    if (isWaiting || gameOver) return;
+    if (flippedIndices.includes(index)) return;
+    if (matchedIndices.includes(index)) return;
+    if (flippedIndices.length >= 2) return;
+
+    setFlippedIndices((prev) => [...prev, index]);
+  };
 
   const handleCardClick = (index) => {
     if (!isMyTurn) return;
@@ -125,10 +187,33 @@ export default function MemoryMatch() {
     if (matchedIndices.includes(index)) return;
     if (flippedIndices.length >= 2) return;
 
+    if (isLocalMode) {
+      return handleLocalFlip(index);
+    }
+
     socket.emit("memory_flip", { roomId, card: { index }, username });
   };
 
+  const sendChatMessage = (text) => {
+    socket.emit("send_chat_message", { roomId, username, text }, (ack) => {
+      if (ack?.error) console.warn("Chat failed:", ack.error);
+    });
+  };
+
+  const startTyping = () => {
+    socket.emit("typing", { roomId, username });
+  };
+
+  const stopTyping = () => {
+    socket.emit("stop_typing", { roomId, username });
+  };
+
   const handlePlayAgain = () => {
+    if (isLocalMode) {
+      initializeLocalGame();
+      return;
+    }
+
     setReplayState("waiting");
     console.log("[MemoryMatch] emit memory_replay_request", { roomId, username });
     socket.emit("memory_replay_request", { roomId, username });
@@ -143,6 +228,87 @@ export default function MemoryMatch() {
     flippedIndices.includes(index) || matchedIndices.includes(index);
 
   const isMatched = (index) => matchedIndices.includes(index);
+
+  useEffect(() => {
+    if (!isLocalMode) return;
+    if (flippedIndices.length !== 2) return;
+
+    setIsWaiting(true);
+    const [first, second] = flippedIndices;
+    const firstCard = cards[first];
+    const secondCard = cards[second];
+    const didMatch = firstCard?.icon && firstCard?.icon === secondCard?.icon;
+
+    const timer = window.setTimeout(() => {
+      if (didMatch) {
+        setMatchedIndices((prev) => [...prev, first, second]);
+        setScores((prev) => ({
+          ...prev,
+          [currentPlayer]: (prev[currentPlayer] || 0) + 1,
+        }));
+      }
+
+      setFlippedIndices([]);
+      setIsWaiting(false);
+
+      const nextPlayer = isAIGame
+        ? didMatch
+          ? currentPlayer
+          : currentPlayer === username
+          ? "Computer"
+          : username
+        : username;
+      setCurrentPlayer(nextPlayer);
+    }, 800);
+
+    return () => window.clearTimeout(timer);
+  }, [flippedIndices, isLocalMode, cards, currentPlayer, isAIGame, username]);
+
+  useEffect(() => {
+    if (!isLocalMode) return;
+    if (!cards.length) return;
+    if (matchedIndices.length !== cards.length) return;
+
+    const winnerName = Object.keys(scores).reduce((winnerKey, key) => {
+      if (winnerKey === "") return key;
+      return scores[key] > scores[winnerKey] ? key : winnerKey;
+    }, "");
+
+    setGameOver({
+      winner: winnerName || "DRAW",
+      scores,
+    });
+  }, [matchedIndices, cards.length, scores, isLocalMode]);
+
+  useEffect(() => {
+    if (!isAIGame || gameOver || currentPlayer !== "Computer") return;
+    if (flippedIndices.length > 0 || isWaiting) return;
+
+    const available = cards
+      .map((_, i) => i)
+      .filter((i) => !matchedIndices.includes(i));
+
+    if (available.length < 2) {
+      setAIThinking(false);
+      return;
+    }
+
+    setAIThinking(true);
+
+    const firstIndex = available[Math.floor(Math.random() * available.length)];
+    const remaining = available.filter((i) => i !== firstIndex);
+    const secondIndex = remaining[Math.floor(Math.random() * remaining.length)];
+
+    const aiTimer = window.setTimeout(() => {
+      setFlippedIndices([firstIndex, secondIndex]);
+      setAIThinking(false);
+    }, 900);
+
+    return () => {
+      window.clearTimeout(aiTimer);
+      setAIThinking(false);
+    };
+  }, [isAIGame, gameOver, currentPlayer, flippedIndices.length, isWaiting, cards, matchedIndices]);
 
   if (gameOver) {
     const isDraw = !gameOver.winner || gameOver.winner === "DRAW";
@@ -166,18 +332,23 @@ export default function MemoryMatch() {
           </div>
           <div style={s.resultFooter}>
             {replayState === "invited" ? (
-              <button 
-                type="button"
-                style={{
-                  ...s.replayBtn,
-                  ...(replayHover && { transform: "scale(1.02)", boxShadow: "0 6px 16px rgba(34, 197, 94, 0.5)" })
-                }}
-                onClick={handleAcceptReplay}
-                onMouseEnter={() => setReplayHover(true)}
-                onMouseLeave={() => setReplayHover(false)}
-              >
-                ✅ Accept Replay
-              </button>
+              <>
+                <div style={s.inviteText}>
+                  Replay requested by {inviterName || "your opponent"}
+                </div>
+                <button 
+                  type="button"
+                  style={{
+                    ...s.replayBtn,
+                    ...(replayHover && { transform: "scale(1.02)", boxShadow: "0 6px 16px rgba(34, 197, 94, 0.5)" })
+                  }}
+                  onClick={handleAcceptReplay}
+                  onMouseEnter={() => setReplayHover(true)}
+                  onMouseLeave={() => setReplayHover(false)}
+                >
+                  ✅ Accept Replay
+                </button>
+              </>
             ) : replayState === "waiting" ? (
               <span style={s.waitingText}>⏳ Waiting for opponent to accept…</span>
             ) : (
@@ -247,6 +418,10 @@ export default function MemoryMatch() {
       <div style={s.status}>
         {cards.length === 0
           ? "⏳ Waiting for game to start..."
+          : isAIGame && currentPlayer === "Computer"
+          ? aiThinking
+            ? "🤖 Computer is thinking..."
+            : "⏳ Computer's turn"
           : isMyTurn
           ? "🎯 Your turn — pick a card!"
           : `⏳ ${currentPlayer}'s turn`}
@@ -273,6 +448,18 @@ export default function MemoryMatch() {
             );
           })}
         </div>
+      )}
+
+      {!isLocalMode && (
+        <RoomChat
+          roomId={roomId}
+          username={username}
+          chat={chat}
+          onSendMessage={sendChatMessage}
+          onTyping={startTyping}
+          onStopTyping={stopTyping}
+          typingUsers={typingUsers}
+        />
       )}
 
       {/* Progress */}

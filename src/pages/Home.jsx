@@ -7,8 +7,10 @@ import "../styles/home.css";
 
 function Home() {
   const navigate = useNavigate();
+  const username = localStorage.getItem("gs_username") || "You";
 
   const [showGameModal, setShowGameModal] = useState(false);
+  const [selectedGame, setSelectedGame] = useState(null);
 
   const games = [
     {
@@ -48,6 +50,103 @@ function Home() {
     setShowGameModal(false);
   };
 
+  const handlePlayAI = () => {
+    navigate("/game/AI", {
+      state: {
+        singlePlayer: true,
+        username,
+      },
+    });
+  };
+
+  const handlePlayMemorySolo = () => {
+    navigate("/memory/SINGLE", {
+      state: {
+        singlePlayer: true,
+        username,
+      },
+    });
+  };
+
+  const handlePlayMemoryAI = () => {
+    navigate("/memory/AI", {
+      state: {
+        ai: true,
+        username,
+      },
+    });
+  };
+
+  const handlePlaySnakeAI = () => {
+    navigate("/snake/AI", {
+      state: {
+        ai: true,
+        username,
+      },
+    });
+  };
+
+  const getModeTargets = (gameId) => {
+    switch (gameId) {
+      case "tic-tac-toe":
+        return {
+          multiplayer: "/create-room",
+          ai: "/game/AI",
+          single: "/game/SINGLE",
+        };
+      case "memory-match":
+        return {
+          multiplayer: "/create-room",
+          ai: "/memory/AI",
+          single: "/memory/SINGLE",
+        };
+      case "quiz-battle":
+        return {
+          multiplayer: "/create-room",
+          ai: null,
+          single: null,
+        };
+      case "snake-ladder":
+        return {
+          multiplayer: "/create-room",
+          ai: "/snake/AI",
+          single: "/snake/SINGLE",
+        };
+      default:
+        return {
+          multiplayer: "/create-room",
+          ai: null,
+          single: null,
+        };
+    }
+  };
+
+  const isModeAvailable = (gameId, mode) => Boolean(getModeTargets(gameId)[mode]);
+
+  const handleModeSelect = (mode) => {
+    if (!selectedGame) return;
+
+    const targets = getModeTargets(selectedGame.id);
+    const target = targets[mode];
+
+    if (mode === "multiplayer") {
+      navigate("/create-room", {
+        state: {
+          selectedGame,
+        },
+      });
+    } else if (target) {
+      const state = {
+        username,
+        ...(mode === "ai" ? { ai: true } : { singlePlayer: true }),
+      };
+
+      navigate(target, { state });
+    }
+
+    setSelectedGame(null);
+  };
+
   return (
     <div className="home-page">
       <Navbar />
@@ -78,32 +177,18 @@ function Home() {
 
             <h3>Available Games</h3>
 
-            <div className="player-item">
-              <div className="player-circle">T</div>
-              <span>Tic Tac Toe</span>
-            </div>
-
-            {/*
-            <div className="player-item">
-              <div className="player-circle">C</div>
-              <span>Chess</span>
-            </div>
-            */}
-
-            <div className="player-item">
-              <div className="player-circle">M</div>
-              <span>Memory Match</span>
-            </div>
-
-            <div className="player-item">
-              <div className="player-circle">Q</div>
-              <span>Quiz Battle</span>
-            </div>
-
-            <div className="player-item">
-              <div className="player-circle">S</div>
-              <span>Snake & Ladder</span>
-            </div>
+            {games.map((game) => (
+              <button
+                key={game.id}
+                type="button"
+                className="game-option-btn"
+                onClick={() => setSelectedGame(game)}
+              >
+                <div className="player-circle">{game.icon}</div>
+                <span>{game.name}</span>
+                <span className="game-option-arrow">▶</span>
+              </button>
+            ))}
 
           </div>
 
@@ -156,10 +241,9 @@ function Home() {
               >
                 🎯 Create Room
               </button>
-
-              {/* Quick Links removed from host-card */}
-
             </div>
+
+            {/* Quick Links removed from host-card */}
 
             <div className="card quick-links-card">
               <h2>Quick Links</h2>
@@ -181,14 +265,34 @@ function Home() {
               </div>
             </div>
 
-            <div className="card info-card">
-              <h2>How Multiplayer Works</h2>
+            <div className="card info-card how-to-play-card">
+              <div className="how-to-play-header">
+                <span className="how-to-play-badge">⚡ Quick Start</span>
+                <h2>How to Play !</h2>
+                <p>Jump into a multiplayer match in just a few simple steps.</p>
+              </div>
 
-              <p>1️⃣ Create a Room</p>
-              <p>2️⃣ Select a Game</p>
-              <p>3️⃣ Share Room ID</p>
-              <p>4️⃣ Friend Joins Room</p>
-              <p>5️⃣ Start Playing</p>
+              <div className="steps-grid">
+                <div className="step-item">
+                  <div className="step-number">1</div>
+                  <h3>Create a Room</h3>
+                </div>
+
+                <div className="step-item">
+                  <div className="step-number">2</div>
+                  <h3>Select a Game</h3>
+                </div>
+
+                <div className="step-item">
+                  <div className="step-number">3</div>
+                  <h3>Share the Room ID</h3>
+                </div>
+
+                <div className="step-item">
+                  <div className="step-number">4</div>
+                  <h3>Start Playing</h3>
+                </div>
+              </div>
             </div>
 
           </div>
@@ -196,6 +300,53 @@ function Home() {
         </div>
 
       </div>
+
+      {selectedGame && (
+        <div className="game-modal-overlay" onClick={() => setSelectedGame(null)}>
+          <div className="game-modal mode-picker-card" onClick={(e) => e.stopPropagation()}>
+            <h2>Choose a mode</h2>
+            <p className="modal-subtitle">How would you like to play {selectedGame.name}?</p>
+
+            <div className="mode-option-grid">
+              <button
+                type="button"
+                className="mode-option-btn primary-btn"
+                onClick={() => handleModeSelect("multiplayer")}
+              >
+                <span className="mode-option-title">🌐 Multiplayer</span>
+                <span className="mode-option-desc">Create a room and invite friends</span>
+              </button>
+
+              <button
+                type="button"
+                className={`mode-option-btn success-btn ${!isModeAvailable(selectedGame.id, "ai") ? "mode-option-disabled" : ""}`}
+                onClick={() => handleModeSelect("ai")}
+                disabled={!isModeAvailable(selectedGame.id, "ai")}
+              >
+                <span className="mode-option-title">🤖 VS AI</span>
+                <span className="mode-option-desc">Play against the computer</span>
+              </button>
+
+              <button
+                type="button"
+                className={`mode-option-btn primary-btn ${!isModeAvailable(selectedGame.id, "single") ? "mode-option-disabled" : ""}`}
+                onClick={() => handleModeSelect("single")}
+                disabled={!isModeAvailable(selectedGame.id, "single")}
+              >
+                <span className="mode-option-title">🎮 Single Mode</span>
+                <span className="mode-option-desc">Play alone at your own pace</span>
+              </button>
+            </div>
+
+            <button
+              className="close-modal-btn"
+              onClick={() => setSelectedGame(null)}
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
 
       {showGameModal && (
         <div className="game-modal-overlay">

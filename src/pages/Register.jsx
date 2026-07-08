@@ -165,6 +165,12 @@ function Register() {
         <form
           className="auth-form"
           onSubmit={handleRegister}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              handleRegister(e);
+            }
+          }}
         >
           <h1>Join GameSphere</h1>
 
@@ -217,6 +223,12 @@ function Register() {
         <form
           className="auth-form"
           onSubmit={handleVerifyOtp}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              handleVerifyOtp(e);
+            }
+          }}
         >
           <h1>Verify OTP</h1>
 

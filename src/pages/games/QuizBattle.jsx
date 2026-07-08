@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import socket from "../../socket/socket";
 import HomeButton from "../../components/HomeButton";
+import RoomChat from "../../components/RoomChat";
 
 const TOTAL_QUESTIONS = 10;
 
@@ -55,6 +56,8 @@ export default function QuizBattle() {
   const { username = "", players: initialPlayers = [] } = location.state || {};
 
   const [players, setPlayers]               = useState(initialPlayers);
+  const [chat, setChat]                     = useState([]);
+  const [typingUsers, setTypingUsers]       = useState([]);
   const [questions, setQuestions]           = useState(() => getRandomQuestions(QUESTIONS, TOTAL_QUESTIONS));
   const [currentQ, setCurrentQ]             = useState(0);
   const [myScore, setMyScore]               = useState(0);
@@ -150,9 +153,27 @@ export default function QuizBattle() {
       }
     });
 
+    const handleChatUpdate = (payload) => {
+      if (payload?.chat) setChat(payload.chat);
+    };
+
+    const handleTyping = ({ username: typingName }) => {
+      if (!typingName || typingName === username) return;
+      setTypingUsers((prev) => (prev.includes(typingName) ? prev : [...prev, typingName]));
+    };
+
+    const handleStopTyping = ({ username: typingName }) => {
+      if (!typingName) return;
+      setTypingUsers((prev) => prev.filter((name) => name !== typingName));
+    };
+
     socket.on("room_update", (room) => {
       if (room?.players) setPlayers(room.players);
+      if (room?.chat) setChat(room.chat);
     });
+    socket.on("chat_update", handleChatUpdate);
+    socket.on("typing", handleTyping);
+    socket.on("stop_typing", handleStopTyping);
 
     return () => {
       clearInterval(timerRef.current);
@@ -161,6 +182,9 @@ export default function QuizBattle() {
       socket.off("quiz_game_over");
       socket.off("quiz_replay_invite");
       socket.off("room_update");
+      socket.off("chat_update", handleChatUpdate);
+      socket.off("typing", handleTyping);
+      socket.off("stop_typing", handleStopTyping);
     };
   }, [roomId, username]);
 
@@ -205,6 +229,20 @@ export default function QuizBattle() {
         }, 300);
       }, 900);
     }
+  };
+
+  const sendChatMessage = (text) => {
+    socket.emit("send_chat_message", { roomId, username, text }, (ack) => {
+      if (ack?.error) console.warn("Chat failed:", ack.error);
+    });
+  };
+
+  const startTyping = () => {
+    socket.emit("typing", { roomId, username });
+  };
+
+  const stopTyping = () => {
+    socket.emit("stop_typing", { roomId, username });
   };
 
   const handlePlayAgain = () => {
@@ -384,6 +422,16 @@ export default function QuizBattle() {
         }} />
       </div>
       <div style={s.timerLabel}>{timeLeft}s</div>
+
+      <RoomChat
+        roomId={roomId}
+        username={username}
+        chat={chat}
+        onSendMessage={sendChatMessage}
+        onTyping={startTyping}
+        onStopTyping={stopTyping}
+        typingUsers={typingUsers}
+      />
 
       {/* Question card */}
       <div style={{ ...s.quizCard, opacity: transitioning ? 0 : 1, transition: "opacity 0.3s ease" }}>

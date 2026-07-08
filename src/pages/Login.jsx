@@ -48,10 +48,14 @@ function Login() {
 
       navigate("/");
     } catch (error) {
-      console.log(error);
+      console.error("Login request failed:", error);
+
+      // Show server-provided message when available for easier debugging
+      const serverMsg = error.response?.data || error.message || "Login Failed";
+      console.error("Server response:", serverMsg);
 
       alert(
-        error.response?.data?.msg ||
+        (typeof serverMsg === "string" ? serverMsg : serverMsg.msg) ||
           "Login Failed"
       );
     }
@@ -62,6 +66,12 @@ function Login() {
       <form
         className="auth-form"
         onSubmit={handleSubmit}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") {
+            e.preventDefault();
+            handleSubmit(e);
+          }
+        }}
       >
         <h1>Welcome Back</h1>
 

@@ -108,7 +108,7 @@
 }
 
 .profile-card h3 {
-  margin-top: 18px;
+  /* margin-top: 18px; */
   color: var(--muted, #cbd5e1);
   width: 100%;
   text-align: left;
@@ -123,12 +123,97 @@
   color: #e5e7eb;
 }
 
+.game-option-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  /* margin-bottom: 10px; */
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 14px;
+  background: rgba(255,255,255,0.04);
+  color: #f8fafc;
+  cursor: pointer;
+  transition: transform 0.2s ease, background 0.2s ease, border-color 0.2s ease;
+  text-align: left;
+}
+
+.game-option-btn:hover {
+  transform: translateY(-2px);
+  background: rgba(99,102,241,0.16);
+  border-color: rgba(99,102,241,0.4);
+}
+
+.game-option-btn span:last-child {
+  margin-left: auto;
+  opacity: 0.7;
+}
+
+.game-option-arrow {
+  font-size: 0.95rem;
+}
+
+.mode-picker-card {
+  max-width: 560px;
+}
+
+.mode-option-grid {
+  display: grid;
+  gap: 14px;
+  margin-top: 18px;
+}
+
+.mode-option-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  width: 100%;
+  padding: 16px 18px;
+  border-radius: 16px;
+  border: 1px solid rgba(255,255,255,0.12);
+  color: white;
+  font-weight: 700;
+  text-align: left;
+  transition: transform 0.2s ease, border-color 0.2s ease;
+}
+
+.mode-option-btn:hover:not(:disabled) {
+  transform: translateY(-2px);
+  border-color: rgba(255,255,255,0.28);
+}
+
+.mode-option-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.mode-option-title {
+  font-size: 1rem;
+}
+
+.mode-option-desc {
+  font-size: 0.9rem;
+  color: rgba(255,255,255,0.76);
+  font-weight: 500;
+}
+
+.mode-option-disabled {
+  background: rgba(148,163,184,0.16) !important;
+}
+
 /* middle-panel is no longer used in Home layout */
 
 .action-column {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 28px;
+  align-items: start;
+}
+
+.action-column .card {
+  height: 100%;
 }
 
 .action-column .info-card {
@@ -137,10 +222,17 @@
 
 .join-card,
 .host-card {
-  min-height: 150px;
+  min-height: 180px;
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
+  justify-content: flex-start;
+  gap: 12px;
+}
+
+.join-card .btn,
+.host-card .btn {
+  margin-top: auto;
+  width: 100%;
 }
 
 .quick-links-card {
@@ -266,6 +358,90 @@
 
 .button-group .btn {
   flex: 1;
+}
+
+.how-to-play-card {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.how-to-play-header {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.how-to-play-badge {
+  display: inline-flex;
+  align-self: flex-start;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: rgba(89, 213, 255, 0.16);
+  color: #59d5ff;
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.how-to-play-header h2 {
+  margin: 0;
+  font-size: 1.6rem;
+}
+
+.how-to-play-header p {
+  margin: 0;
+  color: #cbd5e1;
+  line-height: 1.6;
+}
+
+.steps-grid {
+  display: grid;
+  gap: 12px;
+}
+
+.step-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 2.5px;
+  border-radius: 16px;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.08);
+  transition: transform 0.2s ease, background 0.2s ease, border-color 0.2s ease;
+}
+
+.step-item:hover {
+  transform: translateY(-2px);
+  background: rgba(89, 213, 255, 0.08);
+  border-color: rgba(89, 213, 255, 0.3);
+}
+
+.step-number {
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: linear-gradient(135deg, #00c6ff, #8b5cf6);
+  color: white;
+  font-weight: 700;
+  box-shadow: 0 10px 20px rgba(0, 198, 255, 0.2);
+}
+
+.step-item h3 {
+  margin: 0 0 4px;
+  font-size: 1rem;
+  color: #f8fafc;
+}
+
+.step-item p {
+  margin: 0;
+  font-size: 0.92rem;
+  color: #cbd5e1;
+  line-height: 1.5;
 }
 
 @media(max-width:1100px){
