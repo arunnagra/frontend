@@ -1,6 +1,7 @@
 import { useState, useContext } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import axios from "axios";
+import toast from "react-hot-toast";
 
 import { AuthContext } from "../context/AuthContext";
 import { apiUrl } from "../config/api";
@@ -14,6 +15,12 @@ function Login() {
     email: "",
     password: "",
   });
+  const [forgotFlow, setForgotFlow] = useState(false);
+  const [resetStep, setResetStep] = useState(1);
+  const [resetEmail, setResetEmail] = useState("");
+  const [otp, setOtp] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [loading, setLoading] = useState(false);
 
   const { email, password } = formData;
 
@@ -28,91 +35,239 @@ function Login() {
     e.preventDefault();
 
     if (!email || !password) {
-      alert("Please fill all fields");
+      toast.error("Please fill all fields");
       return;
     }
 
     try {
-      const res = await axios.post(
-        apiUrl("/api/auth/login"),
-        {
-          email,
-          password,
-        }
-      );
+      const res = await axios.post(apiUrl("/api/auth/login"), {
+        email,
+        password,
+      });
 
-      login(
-        res.data.token,
-        res.data.user
-      );
-
+      login(res.data.token, res.data.user);
       navigate("/");
     } catch (error) {
       console.error("Login request failed:", error);
 
-      // Show server-provided message when available for easier debugging
       const serverMsg = error.response?.data || error.message || "Login Failed";
       console.error("Server response:", serverMsg);
 
-      alert(
+      toast.error(
         (typeof serverMsg === "string" ? serverMsg : serverMsg.msg) ||
           "Login Failed"
       );
     }
   };
 
+  const handleForgotPassword = async (e) => {
+    e.preventDefault();
+
+    if (!resetEmail.trim()) {
+      toast.error("Please enter your email");
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      await axios.post(apiUrl("/api/auth/forgot-password"), {
+        email: resetEmail.trim().toLowerCase(),
+      });
+
+      toast.success("OTP sent to your email");
+      setResetStep(2);
+    } catch (error) {
+      const errorMsg =
+        error.response?.data?.msg || error.message || "Unable to send OTP";
+      toast.error(errorMsg);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleResetPassword = async (e) => {
+    e.preventDefault();
+
+    if (!otp || otp.length !== 6) {
+      toast.error("Please enter the 6-digit OTP");
+      return;
+    }
+
+    if (!newPassword.trim()) {
+      toast.error("Please enter a new password");
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      await axios.post(apiUrl("/api/auth/reset-password"), {
+        email: resetEmail.trim().toLowerCase(),
+        otp,
+        password: newPassword,
+      });
+
+      toast.success("Password reset successful. Please login again.");
+      setForgotFlow(false);
+      setResetStep(1);
+      setResetEmail("");
+      setOtp("");
+      setNewPassword("");
+    } catch (error) {
+      const errorMsg =
+        error.response?.data?.msg || error.message || "Unable to reset password";
+      toast.error(errorMsg);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleBackToLogin = () => {
+    setForgotFlow(false);
+    setResetStep(1);
+    setResetEmail("");
+    setOtp("");
+    setNewPassword("");
+  };
+
   return (
     <div className="auth-container">
-      <form
-        className="auth-form"
-        onSubmit={handleSubmit}
-        onKeyDown={(e) => {
-          if (e.key === "Enter") {
-            e.preventDefault();
-            handleSubmit(e);
-          }
-        }}
-      >
-        <h1>Welcome Back</h1>
-
-        <p className="auth-subtitle">
-          Login to continue your GameSphere journey
-        </p>
-
-        <input
-          type="email"
-          name="email"
-          placeholder="Enter Email"
-          value={email}
-          onChange={handleChange}
-          required
-          className="auth-input"
-        />
-
-        <input
-          type="password"
-          name="password"
-          placeholder="Enter Password"
-          value={password}
-          onChange={handleChange}
-          required
-          className="auth-input"
-        />
-
-        <button
-          type="submit"
-          className="auth-btn"
+      {forgotFlow ? (
+        <form
+          className="auth-form"
+          onSubmit={resetStep === 1 ? handleForgotPassword : handleResetPassword}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              resetStep === 1 ? handleForgotPassword(e) : handleResetPassword(e);
+            }
+          }}
         >
-          Login
-        </button>
+          <h1>{resetStep === 1 ? "Reset Password" : "Verify OTP"}</h1>
 
-        <p className="auth-link">
-          Don't have an account?{" "}
-          <Link to="/register">
-            Register
-          </Link>
-        </p>
-      </form>
+          <p className="auth-subtitle">
+            {resetStep === 1
+              ? "Enter your email to receive a password reset OTP"
+              : "Enter the OTP sent to your email and choose a new password"}
+          </p>
+
+          {resetStep === 1 ? (
+            <>
+              <input
+                type="email"
+                name="resetEmail"
+                placeholder="Enter your email"
+                value={resetEmail}
+                onChange={(e) => setResetEmail(e.target.value)}
+                required
+                className="auth-input"
+              />
+
+              <button type="submit" className="auth-btn" disabled={loading}>
+                {loading ? "Sending OTP..." : "Send OTP"}
+              </button>
+            </>
+          ) : (
+            <>
+              <input
+                type="text"
+                name="otp"
+                placeholder="Enter 6-digit OTP"
+                value={otp}
+                onChange={(e) =>
+                  setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))
+                }
+                maxLength="6"
+                required
+                className="auth-input"
+              />
+
+              <input
+                type="password"
+                name="newPassword"
+                placeholder="Create new password"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                required
+                className="auth-input"
+              />
+
+              <button type="submit" className="auth-btn" disabled={loading}>
+                {loading ? "Resetting..." : "Reset Password"}
+              </button>
+            </>
+          )}
+
+          <p className="auth-link">
+            <button
+              type="button"
+              className="auth-link-button"
+              onClick={handleBackToLogin}
+            >
+              Back to login
+            </button>
+          </p>
+        </form>
+      ) : (
+        <form
+          className="auth-form"
+          onSubmit={handleSubmit}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              handleSubmit(e);
+            }
+          }}
+        >
+          <h1>Welcome Back</h1>
+
+          <p className="auth-subtitle">
+            Login to continue your GameSphere journey
+          </p>
+
+          <input
+            type="email"
+            name="email"
+            placeholder="Enter Email"
+            value={email}
+            onChange={handleChange}
+            required
+            className="auth-input"
+          />
+
+          <input
+            type="password"
+            name="password"
+            placeholder="Enter Password"
+            value={password}
+            onChange={handleChange}
+            required
+            className="auth-input"
+          />
+
+          <button type="submit" className="auth-btn">
+            Login
+          </button>
+
+          <p className="auth-link">
+            <button
+              type="button"
+              className="auth-link-button"
+              onClick={() => {
+                setForgotFlow(true);
+                setResetStep(1);
+              }}
+            >
+              Forgot Password?
+            </button>
+          </p>
+
+          <p className="auth-link">
+            Don't have an account? <Link to="/register">Register</Link>
+          </p>
+        </form>
+      )}
     </div>
   );
 }

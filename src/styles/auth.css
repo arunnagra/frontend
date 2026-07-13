@@ -131,6 +131,19 @@
   text-decoration: underline;
 }
 
+.auth-link-button {
+  background: transparent;
+  border: none;
+  color: #00f5ff;
+  cursor: pointer;
+  font-weight: 600;
+  padding: 0;
+}
+
+.auth-link-button:hover {
+  text-decoration: underline;
+}
+
 @media (max-width: 520px) {
   .auth-container {
     padding: 14px;
