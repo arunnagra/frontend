@@ -2,6 +2,16 @@ import { useContext, useState } from "react";
 import axios from "axios";
 import { useNavigate, Link } from "react-router-dom";
 import toast from "react-hot-toast";
+
+import {
+  FaUser,
+  FaEnvelope,
+  FaLock,
+  FaEye,
+  FaEyeSlash,
+  FaKey,
+} from "react-icons/fa";
+
 import { AuthContext } from "../context/AuthContext";
 import { apiUrl } from "../config/api";
 import "../styles/auth.css";
@@ -12,6 +22,7 @@ function Register() {
 
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   const [formData, setFormData] = useState({
     username: "",
@@ -24,9 +35,9 @@ function Register() {
 
   const [otpArray, setOtpArray] = useState(new Array(6).fill(""));
 
-  
-  
-  
+
+
+
   const handleChange = (e) => {
     setFormData({
       ...formData,
@@ -34,9 +45,9 @@ function Register() {
     });
   };
 
-  
-  
-  
+
+
+
   const handleOtpChange = (element, index) => {
     const value = element.value.replace(/\D/g, "");
 
@@ -60,7 +71,7 @@ function Register() {
     }
   };
 
-  
+
   const handlePaste = (e) => {
     e.preventDefault();
 
@@ -79,7 +90,7 @@ function Register() {
 
     setOtpArray(newOtp);
   };
-  
+
   const handleRegister = async (e) => {
     e.preventDefault();
 
@@ -121,8 +132,8 @@ function Register() {
       setLoading(false);
     }
   };
-  
-  
+
+
   const handleVerifyOtp = async (e) => {
     e.preventDefault();
 
@@ -174,35 +185,54 @@ function Register() {
         >
           <h1>Join GameSphere</h1>
 
-          <input
-            type="text"
-            name="username"
-            placeholder="Username"
-            value={username}
-            onChange={handleChange}
-            required
-            className="auth-input"
-          />
+          <div className="input-wrapper">
+            <FaUser className="input-icon" />
 
-          <input
-            type="email"
-            name="email"
-            placeholder="Enter Email"
-            value={email}
-            onChange={handleChange}
-            required
-            className="auth-input"
-          />
+            <input
+              type="text"
+              name="username"
+              placeholder="Username"
+              value={username}
+              onChange={handleChange}
+              required
+              className="auth-input"
+            />
+          </div>
+          <div className="input-wrapper">
+            <FaEnvelope className="input-icon" />
 
-          <input
-            type="password"
-            name="password"
-            placeholder="Create Password"
-            value={password}
-            onChange={handleChange}
-            required
-            className="auth-input"
-          />
+            <input
+              type="email"
+              name="email"
+              placeholder="Enter Email"
+              value={email}
+              onChange={handleChange}
+              required
+              className="auth-input"
+            />
+          </div>
+
+          <div className="password-wrapper">
+            <FaLock className="input-icon" />
+
+            <input
+              type={showPassword ? "text" : "password"}
+              name="password"
+              placeholder="Create Password"
+              value={password}
+              onChange={handleChange}
+              required
+              className="auth-input"
+            />
+
+            <button
+              type="button"
+              className="password-toggle"
+              onClick={() => setShowPassword(!showPassword)}
+            >
+              {showPassword ? <FaEyeSlash /> : <FaEye />}
+            </button>
+          </div>
 
           <button
             type="submit"
@@ -242,6 +272,9 @@ function Register() {
             className="otp-container"
             onPaste={handlePaste}
           >
+            <div className="otp-icon">
+              <FaKey />
+            </div>
             {otpArray.map((digit, index) => (
               <input
                 key={index}

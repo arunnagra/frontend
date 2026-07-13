@@ -2,6 +2,13 @@ import { useState, useContext } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import axios from "axios";
 import toast from "react-hot-toast";
+import {
+  FaEye,
+  FaEyeSlash,
+  FaEnvelope,
+  FaLock,
+  FaKey,
+} from "react-icons/fa";
 
 import { AuthContext } from "../context/AuthContext";
 import { apiUrl } from "../config/api";
@@ -21,6 +28,8 @@ function Login() {
   const [otp, setOtp] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
 
   const { email, password } = formData;
 
@@ -55,7 +64,7 @@ function Login() {
 
       toast.error(
         (typeof serverMsg === "string" ? serverMsg : serverMsg.msg) ||
-          "Login Failed"
+        "Login Failed"
       );
     }
   };
@@ -154,15 +163,19 @@ function Login() {
 
           {resetStep === 1 ? (
             <>
-              <input
-                type="email"
-                name="resetEmail"
-                placeholder="Enter your email"
-                value={resetEmail}
-                onChange={(e) => setResetEmail(e.target.value)}
-                required
-                className="auth-input"
-              />
+              <div className="input-wrapper">
+                <FaEnvelope className="input-icon" />
+
+                <input
+                  type="email"
+                  name="resetEmail"
+                  placeholder="Enter your email"
+                  value={resetEmail}
+                  onChange={(e) => setResetEmail(e.target.value)}
+                  required
+                  className="auth-input"
+                />
+              </div>
 
               <button type="submit" className="auth-btn" disabled={loading}>
                 {loading ? "Sending OTP..." : "Send OTP"}
@@ -170,28 +183,44 @@ function Login() {
             </>
           ) : (
             <>
-              <input
-                type="text"
-                name="otp"
-                placeholder="Enter 6-digit OTP"
-                value={otp}
-                onChange={(e) =>
-                  setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))
-                }
-                maxLength="6"
-                required
-                className="auth-input"
-              />
+              <div className="input-wrapper">
+                <FaKey className="input-icon" />
 
-              <input
-                type="password"
-                name="newPassword"
-                placeholder="Create new password"
-                value={newPassword}
-                onChange={(e) => setNewPassword(e.target.value)}
-                required
-                className="auth-input"
-              />
+                <input
+                  type="text"
+                  name="otp"
+                  placeholder="Enter 6-digit OTP"
+                  value={otp}
+                  onChange={(e) =>
+                    setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))
+                  }
+                  maxLength="6"
+                  required
+                  className="auth-input"
+                />
+              </div>
+
+              <div className="password-wrapper">
+                <FaLock className="input-icon" />
+
+                <input
+                  type={showNewPassword ? "text" : "password"}
+                  name="newPassword"
+                  placeholder="Create new password"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  required
+                  className="auth-input"
+                />
+
+                <button
+                  type="button"
+                  className="password-toggle"
+                  onClick={() => setShowNewPassword(!showNewPassword)}
+                >
+                  {showNewPassword ? <FaEyeSlash /> : <FaEye />}
+                </button>
+              </div>
 
               <button type="submit" className="auth-btn" disabled={loading}>
                 {loading ? "Resetting..." : "Reset Password"}
@@ -226,42 +255,62 @@ function Login() {
             Login to continue your GameSphere journey
           </p>
 
-          <input
-            type="email"
-            name="email"
-            placeholder="Enter Email"
-            value={email}
-            onChange={handleChange}
-            required
-            className="auth-input"
-          />
+          <div className="input-wrapper">
+            <FaEnvelope className="input-icon" />
 
-          <input
-            type="password"
-            name="password"
-            placeholder="Enter Password"
-            value={password}
-            onChange={handleChange}
-            required
-            className="auth-input"
-          />
+            <input
+              type="email"
+              name="email"
+              placeholder="Enter Email"
+              value={email}
+              onChange={handleChange}
+              required
+              className="auth-input"
+            />
+          </div>
 
-          <button type="submit" className="auth-btn">
-            Login
-          </button>
+          <div className="password-wrapper">
+            <FaLock className="input-icon" />
 
-          <p className="auth-link">
+            <input
+              type={showPassword ? "text" : "password"}
+              name="password"
+              placeholder="Enter Password"
+              value={password}
+              onChange={handleChange}
+              required
+              className="auth-input"
+            />
+
             <button
               type="button"
-              className="auth-link-button"
+              className="password-toggle"
+              onClick={() => setShowPassword(!showPassword)}
+            >
+              {showPassword ? <FaEyeSlash /> : <FaEye />}
+            </button>
+          </div>
+
+          <div className="forgot-password-container">
+            <button
+              type="button"
+              className="forgot-password-btn"
               onClick={() => {
                 setForgotFlow(true);
                 setResetStep(1);
               }}
             >
-              Forgot Password?
+              <FaKey size={12} />
+              <span>Forgot Password?</span>
             </button>
-          </p>
+          </div>
+
+
+
+          <button type="submit" className="auth-btn">
+            Login
+          </button>
+
 
           <p className="auth-link">
             Don't have an account? <Link to="/register">Register</Link>
